@@ -1,0 +1,20 @@
+{
+  "name": "daily-vocabulary-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal Daily Vocabulary Learning App with Google Drive Sync",
+  "scripts": {
+    "start": "node server/index.js",
+    "server": "node server/index.js",
+    "client": "npm run dev --prefix client",
+    "dev": "node dev-runner.js",
+    "build": "npm install --prefix client && npm run build --prefix client"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0",
+    "xlsx": "^0.18.5"
+  }
+}
