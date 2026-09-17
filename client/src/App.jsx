@@ -8,8 +8,17 @@ import VocabularyLibrary from './components/VocabularyLibrary';
 import ProgressDashboard from './components/ProgressDashboard';
 import WordDetailModal from './components/WordDetailModal';
 import SettingsModal from './components/SettingsModal';
+import LoginPage from './components/LoginPage';
 
 export default function App() {
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lexipulse_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [theme, setTheme] = useState(() => localStorage.getItem('lexipulse_theme') || 'dark');
   const [currentTab, setCurrentTab] = useState('today'); // 'today' | 'review' | 'library' | 'progress'
   const [activeFlow, setActiveFlow] = useState(null); // 'learning' | 'quiz' | null
@@ -271,6 +280,28 @@ export default function App() {
     }
   };
 
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    localStorage.setItem('lexipulse_user', JSON.stringify(userData));
+    loadAllData();
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('lexipulse_user');
+    showToast('Logged out successfully');
+  };
+
+  if (!user) {
+    return (
+      <LoginPage
+        onLoginSuccess={handleLoginSuccess}
+        theme={theme}
+        setTheme={setTheme}
+      />
+    );
+  }
+
   return (
     <div>
       {/* Toast Notification */}
@@ -310,6 +341,7 @@ export default function App() {
         theme={theme}
         setTheme={setTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main App Container */}

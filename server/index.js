@@ -58,6 +58,32 @@ function getLocalDateStr(req) {
 // ---------------- API ENDPOINTS ---------------- //
 
 /**
+ * Simple Authentication Login
+ * Fixed Credentials: username = 'ruchit', password = '114432'
+ */
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body || {};
+  const cleanUsername = String(username || '').trim().toLowerCase();
+  const cleanPassword = String(password || '').trim();
+
+  if (cleanUsername === 'ruchit' && cleanPassword === '114432') {
+    return res.json({
+      success: true,
+      user: {
+        username: 'ruchit',
+        name: 'Ruchit'
+      },
+      token: 'lexipulse_session_ruchit_auth'
+    });
+  }
+
+  return res.status(401).json({
+    success: false,
+    message: 'Invalid username or password'
+  });
+});
+
+/**
  * App & Sync Status
  */
 app.get('/api/status', (req, res) => {

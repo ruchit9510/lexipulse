@@ -58,6 +58,10 @@ node server/index.js
 The app will be accessible in your browser at:
 **[http://localhost:3000](http://localhost:3000)**
 
+### 3. Login Credentials
+- **Username**: `ruchit`
+- **Password**: `114432`
+
 ---
 
 ## ⚙️ Google Drive Setup

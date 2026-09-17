@@ -8,7 +8,8 @@ import {
   Settings, 
   Flame, 
   Sun, 
-  Moon 
+  Moon,
+  LogOut 
 } from 'lucide-react';
 import SyncStatusPill from './SyncStatusPill';
 
@@ -22,7 +23,8 @@ export default function Navigation({
   syncing, 
   theme, 
   setTheme,
-  onOpenSettings 
+  onOpenSettings,
+  onLogout 
 }) {
   const navItems = [
     { id: 'today', label: 'Today', icon: Home },
@@ -119,6 +121,19 @@ export default function Navigation({
             >
               <Settings size={17} />
             </button>
+
+            {onLogout && (
+              <button 
+                className="btn-icon"
+                onClick={onLogout}
+                title="Log Out"
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-danger)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+              >
+                <LogOut size={16} />
+              </button>
+            )}
           </div>
         </div>
       </header>
