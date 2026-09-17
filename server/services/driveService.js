@@ -21,7 +21,7 @@ function getOAuthClient(redirectUri) {
     return null;
   }
 
-  const effectiveUri = customUri || redirectUri || 'http://localhost:3000/api/google/callback';
+  const effectiveUri = redirectUri || customUri || 'http://localhost:3000/api/google/callback';
 
   const client = new google.auth.OAuth2(
     clientId,
@@ -43,7 +43,7 @@ function getOAuthClient(redirectUri) {
 function getAuthUrl(redirectUri) {
   const settings = db.getRawSettings();
   const customUri = process.env.GOOGLE_REDIRECT_URI || settings.googleRedirectUri;
-  const effectiveUri = customUri || redirectUri || 'http://localhost:3000/api/google/callback';
+  const effectiveUri = redirectUri || customUri || 'http://localhost:3000/api/google/callback';
 
   const client = getOAuthClient(effectiveUri);
   if (!client) {
