@@ -54,7 +54,8 @@ function getAuthUrl(redirectUri) {
     access_type: 'offline',
     prompt: 'consent',
     scope: SCOPES,
-    redirect_uri: effectiveUri
+    redirect_uri: effectiveUri,
+    state: effectiveUri
   });
 }
 

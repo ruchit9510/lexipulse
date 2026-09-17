@@ -80,7 +80,8 @@ export default function SettingsModal({
   const handleConnectGoogle = async () => {
     setErrorMsg('');
     try {
-      const res = await fetch('/api/google/auth-url');
+      const redirectUri = `${window.location.origin}/api/google/callback`;
+      const res = await fetch(`/api/google/auth-url?redirectUri=${encodeURIComponent(redirectUri)}`);
       const data = await res.json();
       if (data.success && data.url) {
         // Redirect to Google Consent Screen
@@ -361,9 +362,9 @@ export default function SettingsModal({
                 Required in Google Cloud Console:
               </div>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-                Under <strong>Authorized redirect URIs</strong> in your OAuth Client settings, add:
+                In your Google Cloud Console OAuth 2.0 Client, add this under <strong>Authorized redirect URIs</strong> (exact match with <code>https://</code> and <code>/api/google/callback</code>):
               </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
                 <code style={{ 
                   flex: 1, 
                   background: 'rgba(0, 0, 0, 0.25)', 
@@ -371,18 +372,20 @@ export default function SettingsModal({
                   borderRadius: 'var(--radius-sm)', 
                   fontSize: '0.8rem',
                   color: 'var(--text-primary)',
-                  userSelect: 'all'
+                  userSelect: 'all',
+                  wordBreak: 'break-all'
                 }}>
-                  http://localhost:3000/api/google/callback
+                  {typeof window !== 'undefined' ? `${window.location.origin}/api/google/callback` : 'https://yourdomain.com/api/google/callback'}
                 </code>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => {
-                    navigator.clipboard.writeText('http://localhost:3000/api/google/callback');
-                    alert('Copied to clipboard!\n\nAdd this to "Authorized redirect URIs" in your Google Cloud Console credentials page.');
+                    const uri = `${window.location.origin}/api/google/callback`;
+                    navigator.clipboard.writeText(uri);
+                    alert(`Copied to clipboard:\n${uri}\n\nPaste this in Google Cloud Console under "Authorized redirect URIs".`);
                   }}
-                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
                 >
                   Copy URI
                 </button>

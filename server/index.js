@@ -7,6 +7,7 @@ const driveService = require('./services/driveService');
 const { generateDailyQuiz } = require('./services/quizGenerator');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
@@ -53,6 +54,16 @@ function getLocalDateStr(req) {
     return clientDate;
   }
   return new Date().toISOString().split('T')[0];
+}
+
+// Helper to determine exact OAuth redirect URI respecting proxies and custom domains
+function getRequestRedirectUri(req) {
+  if (req.query.redirectUri) {
+    return req.query.redirectUri;
+  }
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  return `${proto}://${host}/api/google/callback`;
 }
 
 // ---------------- API ENDPOINTS ---------------- //
@@ -299,22 +310,22 @@ app.post('/api/sync', async (req, res) => {
  */
 app.get('/api/google/auth-url', (req, res) => {
   try {
-    const redirectUri = req.query.redirectUri || `${req.protocol}://${req.get('host')}/api/google/callback`;
+    const redirectUri = getRequestRedirectUri(req);
     const url = driveService.getAuthUrl(redirectUri);
-    res.json({ success: true, url });
+    res.json({ success: true, url, redirectUri });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
 });
 
 app.get('/api/google/callback', async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, state } = req.query;
   if (error) {
     return res.redirect(`/?auth_error=${encodeURIComponent(error)}`);
   }
 
   try {
-    const redirectUri = `${req.protocol}://${req.get('host')}/api/google/callback`;
+    const redirectUri = state || getRequestRedirectUri(req);
     await driveService.handleCallback(code, redirectUri);
     // Redirect back to frontend
     res.redirect(`/?drive_connected=true`);

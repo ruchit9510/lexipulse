@@ -144,7 +144,8 @@ export default function App() {
 
   const handleConnectGoogle = async () => {
     try {
-      const res = await fetch('/api/google/auth-url');
+      const redirectUri = `${window.location.origin}/api/google/callback`;
+      const res = await fetch(`/api/google/auth-url?redirectUri=${encodeURIComponent(redirectUri)}`);
       const data = await res.json();
       if (data.success && data.url) {
         window.location.href = data.url;
