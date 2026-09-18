@@ -3,6 +3,8 @@ client/node_modules/
 dist/
 client/dist/
 .env
+*.env
+atlas-credentials.env
 data/
 __pycache__/
 *.pyc

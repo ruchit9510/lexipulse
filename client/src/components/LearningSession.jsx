@@ -10,7 +10,10 @@ import {
   PenTool, 
   Save, 
   Sparkles,
-  Award
+  Award,
+  Lightbulb,
+  MessageSquare,
+  Tag
 } from 'lucide-react';
 
 export default function LearningSession({ 
@@ -28,6 +31,11 @@ export default function LearningSession({
   const [sentenceSaved, setSentenceSaved] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [wordConfidence, setWordConfidence] = useState({});
+  const [aiEval, setAiEval] = useState(null);
+  const [evaluating, setEvaluating] = useState(false);
+  const [insights, setInsights] = useState(null);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [showAiInsights, setShowAiInsights] = useState(false);
 
   if (!words || words.length === 0) {
     return (
@@ -61,6 +69,9 @@ export default function LearningSession({
       setRevealed(false);
       setUserSentence('');
       setSentenceSaved(false);
+      setAiEval(null);
+      setInsights(null);
+      setShowAiInsights(false);
     } else {
       // Session finished
       setSessionCompleted(true);
@@ -74,6 +85,9 @@ export default function LearningSession({
       setRevealed(true);
       setUserSentence('');
       setSentenceSaved(false);
+      setAiEval(null);
+      setInsights(null);
+      setShowAiInsights(false);
     }
   };
 
@@ -90,6 +104,61 @@ export default function LearningSession({
     if (!userSentence.trim()) return;
     await onSaveSentence(currentWord.id, userSentence.trim());
     setSentenceSaved(true);
+  };
+
+  const handleEvaluateAi = async () => {
+    const text = userSentence.trim() || currentWord.progress?.userSentence || '';
+    if (!text) return;
+    setEvaluating(true);
+    try {
+      const res = await fetch('/api/ai/evaluate-sentence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          word: currentWord.word,
+          sentence: text,
+          meaning: currentWord.meaning
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.evaluation) {
+        setAiEval(data.evaluation);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  const handleToggleInsights = async () => {
+    if (showAiInsights) {
+      setShowAiInsights(false);
+      return;
+    }
+    setShowAiInsights(true);
+    if (!insights) {
+      setLoadingInsights(true);
+      try {
+        const res = await fetch('/api/ai/word-insights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            word: currentWord.word,
+            meaning: currentWord.meaning,
+            example: currentWord.example
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.insights) {
+          setInsights(data.insights);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoadingInsights(false);
+      }
+    }
   };
 
   // Completion summary view
@@ -281,14 +350,14 @@ export default function LearningSession({
               <span><strong>Your Turn:</strong> Write a quick sentence with <em>{currentWord.word}</em> (optional):</span>
             </div>
 
-            <form onSubmit={handleSaveSentence} style={{ display: 'flex', gap: '0.5rem' }}>
+            <form onSubmit={handleSaveSentence} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <input
                 type="text"
                 value={userSentence || currentWord.progress?.userSentence || ''}
-                onChange={e => { setUserSentence(e.target.value); setSentenceSaved(false); }}
+                onChange={e => { setUserSentence(e.target.value); setSentenceSaved(false); setAiEval(null); }}
                 placeholder={`e.g. In my work, we avoided a ${currentWord.word.toLowerCase()} by...`}
                 style={{
-                  flex: 1,
+                  flex: '1 1 200px',
                   background: 'rgba(255, 255, 255, 0.04)',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 'var(--radius-md)',
@@ -307,7 +376,62 @@ export default function LearningSession({
                 {sentenceSaved ? <Check size={16} style={{ color: 'var(--accent-success)' }} /> : <Save size={16} />}
                 <span>{sentenceSaved ? 'Saved' : 'Save'}</span>
               </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleEvaluateAi}
+                disabled={evaluating || !(userSentence.trim() || currentWord.progress?.userSentence)}
+                style={{ padding: '0.65rem 1rem', fontSize: '0.85rem' }}
+              >
+                <Sparkles size={15} />
+                <span>{evaluating ? 'Analyzing...' : 'AI Coach'}</span>
+              </button>
             </form>
+
+            {/* AI Sentence Feedback */}
+            {aiEval && (
+              <div style={{
+                marginTop: '0.75rem',
+                background: aiEval.isGood ? 'rgba(34, 197, 94, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                border: `1px solid ${aiEval.isGood ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                borderRadius: 'var(--radius-md)',
+                padding: '0.75rem 1rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: aiEval.isGood ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
+                    {aiEval.isGood ? '✓ Great Usage' : '💡 Tip'} • Score: {'★'.repeat(aiEval.score || 3)}{'☆'.repeat(Math.max(0, 5 - (aiEval.score || 3)))}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', margin: '0.2rem 0' }}>
+                  {aiEval.feedback}
+                </p>
+                {aiEval.polishedSentence && (
+                  <div style={{ marginTop: '0.5rem', borderTop: '1px dashed var(--border-subtle)', paddingTop: '0.4rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Polished:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.2rem' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', fontStyle: 'italic' }}>
+                        "{aiEval.polishedSentence}"
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setUserSentence(aiEval.polishedSentence)}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: 'none',
+                          color: 'var(--text-primary)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '0.2rem 0.5rem',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

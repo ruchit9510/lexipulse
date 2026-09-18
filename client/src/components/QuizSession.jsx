@@ -27,6 +27,8 @@ export default function QuizSession({
   const [answered, setAnswered] = useState(false);
   const [userAnswers, setUserAnswers] = useState([]);
   const [quizFinished, setQuizFinished] = useState(false);
+  const [aiHint, setAiHint] = useState(null);
+  const [loadingHint, setLoadingHint] = useState(false);
 
   useEffect(() => {
     fetchQuizQuestions();
@@ -76,6 +78,7 @@ export default function QuizSession({
       setCurrentIndex(prev => prev + 1);
       setSelectedOption(null);
       setAnswered(false);
+      setAiHint(null);
     } else {
       // Quiz finished
       setQuizFinished(true);
@@ -88,23 +91,53 @@ export default function QuizSession({
         try {
           confetti({
             particleCount: 80,
-            spread: 60,
+            spread: 70,
             origin: { y: 0.6 }
           });
-        } catch (e) {
-          // Ignore if canvas confetti not supported
-        }
+        } catch (e) {}
       }
 
-      // Submit results to backend
-      if (onCompleteQuiz) {
+      // Record to backend
+      try {
         await onCompleteQuiz({
           date: dateStr,
           results: userAnswers,
           score: correctCount,
           total
         });
+      } catch (e) {
+        console.error('Failed to submit quiz:', e);
       }
+    }
+  };
+
+  const handleFetchAiHint = async () => {
+    if (aiHint) {
+      setAiHint(null);
+      return;
+    }
+    const q = questions[currentIndex];
+    if (!q) return;
+
+    setLoadingHint(true);
+    try {
+      const res = await fetch('/api/ai/quiz-hint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          word: q.targetWord,
+          question: q.prompt + ' ' + (q.contextText || ''),
+          options: q.options
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.hint) {
+        setAiHint(data.hint);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingHint(false);
     }
   };
 
@@ -259,12 +292,43 @@ export default function QuizSession({
           border: '1px solid var(--border-subtle)', 
           borderRadius: 'var(--radius-md)', 
           padding: '1.25rem', 
-          marginBottom: '1.5rem',
+          marginBottom: '1rem',
           fontSize: '1.05rem',
           color: 'var(--text-primary)',
           lineHeight: '1.6'
         }}>
           {currentQ.contextText}
+        </div>
+
+        {/* AI Hint Button & Bubble */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          {!answered && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleFetchAiHint}
+              disabled={loadingHint}
+              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <Sparkles size={14} style={{ color: 'var(--accent-warning)' }} />
+              <span>{loadingHint ? 'Generating Hint...' : aiHint ? 'Hide Hint' : '💡 Ask Gemini AI for Hint'}</span>
+            </button>
+          )}
+
+          {aiHint && (
+            <div style={{
+              marginTop: '0.5rem',
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.65rem 0.9rem',
+              fontSize: '0.85rem',
+              color: 'var(--text-primary)'
+            }}>
+              <span style={{ fontWeight: 600, color: 'var(--accent-warning)' }}>💡 AI Hint: </span>
+              <span>{aiHint}</span>
+            </div>
+          )}
         </div>
 
         {/* Shuffled Options */}

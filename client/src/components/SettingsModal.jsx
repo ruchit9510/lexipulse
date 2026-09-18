@@ -12,7 +12,9 @@ import {
   FileSpreadsheet,
   Moon,
   Sun,
-  Laptop
+  Laptop,
+  Database,
+  Sparkles
 } from 'lucide-react';
 
 export default function SettingsModal({ 
@@ -167,6 +169,58 @@ export default function SettingsModal({
             {errorMsg}
           </div>
         )}
+
+        {/* Cloud Infrastructure: MongoDB Atlas & Gemini AI */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(34, 197, 94, 0.04) 100%)',
+          border: '1px solid var(--border-highlight)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1.25rem',
+          marginBottom: '1.5rem',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '1rem'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
+              <Database size={16} style={{ color: 'var(--accent-success)' }} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                MongoDB Atlas Cloud DB
+              </span>
+            </div>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+              Cluster: <code>cluster0.koho4sc.mongodb.net</code>
+            </p>
+            <div style={{ marginTop: '0.4rem' }}>
+              {syncStatus?.mongo?.connected !== false ? (
+                <span className="badge badge-mastered" style={{ fontSize: '0.75rem' }}>
+                  <CheckCircle2 size={12} /> Connected & Synced
+                </span>
+              ) : (
+                <span className="badge badge-practice" style={{ fontSize: '0.75rem' }}>
+                  Local File Cache
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
+              <Sparkles size={16} style={{ color: 'var(--accent-primary)' }} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Google Gemini Flash AI
+              </span>
+            </div>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+              Model: <code>gemini-3.6-flash</code> (Free Tier)
+            </p>
+            <div style={{ marginTop: '0.4rem' }}>
+              <span className="badge badge-learning" style={{ fontSize: '0.75rem' }}>
+                <Sparkles size={12} /> Sentence Coach & Hints Active
+              </span>
+            </div>
+          </div>
+        </div>
 
         {/* Section 1: Google Drive Synchronization */}
         <div style={{ marginBottom: '2rem' }}>

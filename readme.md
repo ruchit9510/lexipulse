@@ -33,6 +33,17 @@ A modern, focused daily English vocabulary learning web application that automat
   - Search by word name or definition.
   - Filter by category: All, Mastered, Learning, Needs Practice, and Favorites ⭐.
   - Full word detail modal with personal notes and learning statistics.
+- **Google Gemini Flash AI Integration (Free Tier)**:
+  - **AI Sentence Coach**: Instant grammatical feedback, 1–5 star rating, and polished native phrasing for user practice sentences.
+  - **AI Memory Hook & Workplace Context**: High-retention visual mnemonics, collocations, and realistic office dialogues for any word.
+  - **AI Quiz Clues**: Smart contextual hints during daily quizzes.
+- **MongoDB Atlas Cloud Database**:
+  - Automatically persists all vocabulary, learning progress, streaks, daily sessions, and settings to MongoDB Atlas.
+  - Persistent across Render redeployments and container restarts.
+  - Graceful local file fallback if cloud network connectivity drops.
+- **User Authentication in Database**:
+  - Login credentials stored and validated against MongoDB Atlas `users` collection.
+  - Seeded user: `ruchit` / `114432`.
 - **Modern Aesthetics & Responsive Design**:
   - Obsidian dark mode and modern light mode with instant toggle.
   - Mobile-optimized layout with bottom navigation bar and desktop header.

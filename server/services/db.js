@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const mongo = require('./mongo');
 
 const DB_DIR = path.join(__dirname, '../../data');
 const DB_PATH = path.join(DB_DIR, 'vocabulary_db.json');
@@ -74,6 +75,38 @@ function saveDb() {
 }
 
 /**
+ * Initialize MongoDB connection and perform bidirectional sync
+ */
+async function initMongoDb() {
+  try {
+    const connected = await mongo.connectMongo();
+    if (connected) {
+      const local = loadDb();
+      // If Mongo is empty, migrate local data up to Atlas
+      await mongo.migrateToMongoIfEmpty(local);
+
+      // Load latest data from MongoDB Atlas into memory and local cache
+      const cloudData = await mongo.loadAllFromMongo();
+      if (cloudData && Object.keys(cloudData.vocabulary || {}).length > 0) {
+        dbCache = {
+          ...DEFAULT_STATE,
+          ...cloudData,
+          streak: cloudData.streak || dbCache?.streak || DEFAULT_STATE.streak,
+          settings: cloudData.settings || dbCache?.settings || DEFAULT_STATE.settings
+        };
+        saveDb();
+        console.log(`[Database] Synced ${Object.keys(dbCache.vocabulary).length} vocabulary words from MongoDB Atlas.`);
+      }
+    }
+  } catch (err) {
+    console.error('[Database] Mongo sync notice:', err.message);
+  }
+}
+
+// Start connection in background
+initMongoDb();
+
+/**
  * Upsert vocabulary records without wiping learning progress
  * @param {Array} records 
  * @returns {{ added: number, updated: number, total: number }}
@@ -125,6 +158,13 @@ function upsertVocabulary(records) {
   });
 
   saveDb();
+
+  // Async persist to MongoDB Atlas
+  records.forEach(rec => {
+    mongo.persistVocabulary(db.vocabulary[rec.id]);
+    mongo.persistProgress(db.learningProgress[rec.id]);
+  });
+
   return { added, updated, total: Object.keys(db.vocabulary).length };
 }
 
@@ -256,6 +296,11 @@ function recordWordReview(wordId, outcome, dateStr) {
   });
 
   saveDb();
+
+  // Async persist to MongoDB Atlas
+  mongo.persistProgress(p);
+  mongo.persistStreak(db.streak);
+
   return { ...item, progress: p };
 }
 
@@ -267,6 +312,7 @@ function toggleFavorite(wordId) {
   if (!db.learningProgress[wordId]) return false;
   db.learningProgress[wordId].isFavorite = !db.learningProgress[wordId].isFavorite;
   saveDb();
+  mongo.persistProgress(db.learningProgress[wordId]);
   return db.learningProgress[wordId].isFavorite;
 }
 
@@ -278,6 +324,7 @@ function saveUserSentence(wordId, sentence) {
   if (!db.learningProgress[wordId]) return null;
   db.learningProgress[wordId].userSentence = sentence || '';
   saveDb();
+  mongo.persistProgress(db.learningProgress[wordId]);
   return db.learningProgress[wordId];
 }
 
@@ -317,6 +364,16 @@ function recordQuizResult(dateStr, results, score, total) {
   updateStreak(dateStr);
 
   saveDb();
+
+  // Async persist to MongoDB Atlas
+  mongo.persistDailySession(db.dailySessions[dateStr]);
+  mongo.persistStreak(db.streak);
+  results.forEach(res => {
+    if (res.wordId && db.learningProgress[res.wordId]) {
+      mongo.persistProgress(db.learningProgress[res.wordId]);
+    }
+  });
+
   return db.dailySessions[dateStr];
 }
 
@@ -340,6 +397,11 @@ function completeLearningSession(dateStr, wordIds) {
   // Completing learning session counts toward streak
   updateStreak(dateStr);
   saveDb();
+
+  // Async persist to MongoDB Atlas
+  mongo.persistDailySession(db.dailySessions[dateStr]);
+  mongo.persistStreak(db.streak);
+
   return db.dailySessions[dateStr];
 }
 
@@ -461,6 +523,7 @@ function updateSettings(patch) {
   const db = loadDb();
   db.settings = { ...db.settings, ...patch };
   saveDb();
+  mongo.persistSettings(db.settings);
   return getSettings();
 }
 
@@ -484,5 +547,7 @@ module.exports = {
   getStats,
   getSettings,
   updateSettings,
-  getRawSettings
+  getRawSettings,
+  verifyUser: mongo.verifyUser,
+  getMongoStatus: mongo.getStatus
 };

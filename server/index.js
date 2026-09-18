@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const db = require('./services/db');
 const driveService = require('./services/driveService');
+const geminiService = require('./services/geminiService');
 const { generateDailyQuiz } = require('./services/quizGenerator');
 
 const app = express();
@@ -69,29 +70,30 @@ function getRequestRedirectUri(req) {
 // ---------------- API ENDPOINTS ---------------- //
 
 /**
- * Simple Authentication Login
- * Fixed Credentials: username = 'ruchit', password = '114432'
+ * Authentication Login
+ * Validates credentials against MongoDB Atlas users collection
  */
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body || {};
-  const cleanUsername = String(username || '').trim().toLowerCase();
-  const cleanPassword = String(password || '').trim();
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const auth = await db.verifyUser(username, password);
 
-  if (cleanUsername === 'ruchit' && cleanPassword === '114432') {
-    return res.json({
-      success: true,
-      user: {
-        username: 'ruchit',
-        name: 'Ruchit'
-      },
-      token: 'lexipulse_session_ruchit_auth'
+    if (auth && auth.success) {
+      return res.json({
+        success: true,
+        user: auth.user,
+        token: 'lexipulse_session_ruchit_auth'
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: auth?.message || 'Invalid username or password'
     });
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ success: false, message: 'Server login error' });
   }
-
-  return res.status(401).json({
-    success: false,
-    message: 'Invalid username or password'
-  });
 });
 
 /**
@@ -100,6 +102,7 @@ app.post('/api/login', (req, res) => {
 app.get('/api/status', (req, res) => {
   const settings = db.getRawSettings();
   const stats = db.getStats();
+  const mongoStatus = db.getMongoStatus ? db.getMongoStatus() : { connected: false };
   res.json({
     success: true,
     driveConnected: Boolean(settings.driveConnected),
@@ -109,6 +112,7 @@ app.get('/api/status', (req, res) => {
     lastSyncedAt: settings.lastSyncedAt,
     lastModifiedTime: settings.lastModifiedTime,
     syncStatus: settings.syncStatus || 'idle',
+    mongo: mongoStatus,
     stats
   });
 });
@@ -277,6 +281,52 @@ app.post('/api/quiz/submit', (req, res) => {
     streak: db.loadDb().streak,
     stats: db.getStats()
   });
+});
+
+/**
+ * ---------------- AI ENDPOINTS (Google Gemini Flash) ----------------
+ */
+
+/**
+ * AI Sentence Evaluation
+ */
+app.post('/api/ai/evaluate-sentence', async (req, res) => {
+  try {
+    const { word, sentence, meaning } = req.body || {};
+    const evaluation = await geminiService.evaluateSentence({ word, sentence, meaning });
+    res.json({ success: true, evaluation });
+  } catch (err) {
+    console.error('AI evaluate-sentence error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * AI Word Insights & Mnemonics
+ */
+app.post('/api/ai/word-insights', async (req, res) => {
+  try {
+    const { word, meaning, example } = req.body || {};
+    const insights = await geminiService.getWordInsights({ word, meaning, example });
+    res.json({ success: true, insights });
+  } catch (err) {
+    console.error('AI word-insights error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * AI Quiz Hint
+ */
+app.post('/api/ai/quiz-hint', async (req, res) => {
+  try {
+    const { word, question, options } = req.body || {};
+    const hint = await geminiService.getQuizHint({ word, question, options });
+    res.json({ success: true, hint });
+  } catch (err) {
+    console.error('AI quiz-hint error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 /**
