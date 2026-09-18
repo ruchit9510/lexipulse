@@ -237,7 +237,7 @@ export default function QuizSession({
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className="quiz-summary-actions">
           {difficultWords.length > 0 && (
             <button className="btn btn-secondary" onClick={onGoToReview}>
               <RotateCcw size={16} />

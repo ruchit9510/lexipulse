@@ -436,19 +436,9 @@ export default function LearningSession({
         )}
       </div>
 
-      {/* Bottom Confidence Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
-        <button 
-          className="btn btn-secondary"
-          onClick={handlePrev}
-          disabled={currentIndex === 0}
-          style={{ padding: '0.75rem 1.2rem' }}
-        >
-          <ArrowLeft size={16} />
-          <span>Previous</span>
-        </button>
-
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+      {/* Bottom Confidence & Navigation Bar */}
+      <div className="learning-bottom-bar">
+        <div className="learning-confidence-btns">
           <button 
             className="btn btn-danger"
             onClick={() => handleConfidence('need_practice')}
@@ -468,14 +458,26 @@ export default function LearningSession({
           </button>
         </div>
 
-        <button 
-          className="btn btn-primary"
-          onClick={handleNext}
-          style={{ padding: '0.75rem 1.2rem' }}
-        >
-          <span>{currentIndex === total - 1 ? 'Finish' : 'Next'}</span>
-          <ArrowRight size={16} />
-        </button>
+        <div className="learning-nav-btns">
+          <button 
+            className="btn btn-secondary"
+            onClick={handlePrev}
+            disabled={currentIndex === 0}
+            style={{ padding: '0.75rem 1.2rem' }}
+          >
+            <ArrowLeft size={16} />
+            <span>Previous</span>
+          </button>
+
+          <button 
+            className="btn btn-primary"
+            onClick={handleNext}
+            style={{ padding: '0.75rem 1.2rem' }}
+          >
+            <span>{currentIndex === total - 1 ? 'Finish' : 'Next'}</span>
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -208,11 +208,11 @@ export default function SettingsModal({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
               <Sparkles size={16} style={{ color: 'var(--accent-primary)' }} />
               <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                Google Gemini Flash AI
+                Google Gemini Flash-Lite AI
               </span>
             </div>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Model: <code>gemini-3.6-flash</code> (Free Tier)
+              Model: <code>gemini-flash-lite-latest</code> (Free Tier • Unlimited Limit)
             </p>
             <div style={{ marginTop: '0.4rem' }}>
               <span className="badge badge-learning" style={{ fontSize: '0.75rem' }}>

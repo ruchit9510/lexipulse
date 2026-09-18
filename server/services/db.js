@@ -549,5 +549,6 @@ module.exports = {
   updateSettings,
   getRawSettings,
   verifyUser: mongo.verifyUser,
+  verifySessionToken: mongo.verifySessionToken,
   getMongoStatus: mongo.getStatus
 };

@@ -61,14 +61,24 @@ export default function App() {
     // Auto-fetch Google Drive updates whenever user returns to the tab or app
     const onFocus = () => {
       handleSync(true);
+      checkActiveSession();
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         handleSync(true);
+        checkActiveSession();
       }
     };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibilityChange);
+
+    // Initial session check
+    checkActiveSession();
+
+    // Auto-poll session every 15 seconds to immediately detect logins from other devices
+    const sessionPoll = setInterval(() => {
+      checkActiveSession();
+    }, 15000);
 
     // Auto-poll Google Drive every 60 seconds
     const intervalTimer = setInterval(() => {
@@ -78,9 +88,32 @@ export default function App() {
     return () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearInterval(sessionPoll);
       clearInterval(intervalTimer);
     };
   }, []);
+
+  const checkActiveSession = async () => {
+    const token = localStorage.getItem('lexipulse_token');
+    const savedUser = localStorage.getItem('lexipulse_user');
+    if (!token || !savedUser) return;
+
+    try {
+      const u = JSON.parse(savedUser);
+      const res = await fetch('/api/auth/verify-session', {
+        headers: {
+          'x-session-token': token,
+          'x-username': u.username || 'ruchit'
+        }
+      });
+      const data = await res.json();
+      if (!data.valid && data.logout) {
+        handleLogout(data.message || 'Logged out because your account was logged in from another device.');
+      }
+    } catch (e) {
+      // Ignore network errors
+    }
+  };
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -281,16 +314,20 @@ export default function App() {
     }
   };
 
-  const handleLoginSuccess = (userData) => {
+  const handleLoginSuccess = (userData, token) => {
     setUser(userData);
     localStorage.setItem('lexipulse_user', JSON.stringify(userData));
+    if (token) {
+      localStorage.setItem('lexipulse_token', token);
+    }
     loadAllData();
   };
 
-  const handleLogout = () => {
+  const handleLogout = (reasonMsg) => {
     setUser(null);
     localStorage.removeItem('lexipulse_user');
-    showToast('Logged out successfully');
+    localStorage.removeItem('lexipulse_token');
+    showToast(reasonMsg || 'Logged out successfully');
   };
 
   if (!user) {

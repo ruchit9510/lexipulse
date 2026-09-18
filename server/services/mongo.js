@@ -1,13 +1,16 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 let isMongoConnected = false;
 let mongoError = null;
+const localActiveSessions = {}; // username -> sessionToken (offline fallback)
 
 // Schemas
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true }, // Simple direct/hashed credential
   name: { type: String, default: 'Ruchit' },
+  currentSessionToken: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
   lastLoginAt: { type: Date, default: Date.now }
 });
@@ -147,15 +150,18 @@ async function ensureSeedUser() {
 
 /**
  * Verify user credentials from MongoDB (or fallback if offline)
+ * Issues a single-active-session token so only one device can be logged in at a time.
  */
 async function verifyUser(username, password) {
   const cleanUsername = String(username || '').trim().toLowerCase();
   const cleanPassword = String(password || '').trim();
+  const sessionToken = 'lp_' + crypto.randomBytes(24).toString('hex');
 
   if (isMongoConnected) {
     try {
       const user = await User.findOne({ username: cleanUsername });
       if (user && user.password === cleanPassword) {
+        user.currentSessionToken = sessionToken;
         user.lastLoginAt = new Date();
         await user.save();
         return {
@@ -163,7 +169,8 @@ async function verifyUser(username, password) {
           user: {
             username: user.username,
             name: user.name || 'Ruchit'
-          }
+          },
+          token: sessionToken
         };
       }
       return { success: false, message: 'Invalid username or password' };
@@ -174,16 +181,59 @@ async function verifyUser(username, password) {
 
   // Fallback check
   if (cleanUsername === 'ruchit' && cleanPassword === '114432') {
+    localActiveSessions[cleanUsername] = sessionToken;
     return {
       success: true,
       user: {
         username: 'ruchit',
         name: 'Ruchit'
-      }
+      },
+      token: sessionToken
     };
   }
 
   return { success: false, message: 'Invalid username or password' };
+}
+
+/**
+ * Verify if the given session token is still the active one for this user
+ * If someone logged in from another device, this will return valid: false
+ */
+async function verifySessionToken(username, token) {
+  if (!token || !username) {
+    return { valid: false, message: 'Missing session parameters' };
+  }
+  const cleanUsername = String(username).trim().toLowerCase();
+
+  if (isMongoConnected) {
+    try {
+      const user = await User.findOne({ username: cleanUsername });
+      if (!user) {
+        return { valid: false, message: 'User not found' };
+      }
+      if (user.currentSessionToken !== token) {
+        return {
+          valid: false,
+          reason: 'superseded',
+          message: 'You have been logged out because your account was logged in from another device.'
+        };
+      }
+      return { valid: true };
+    } catch (err) {
+      console.error('[MongoDB] verifySessionToken error:', err.message);
+    }
+  }
+
+  // Fallback check
+  if (localActiveSessions[cleanUsername] && localActiveSessions[cleanUsername] !== token) {
+    return {
+      valid: false,
+      reason: 'superseded',
+      message: 'You have been logged out because your account was logged in from another device.'
+    };
+  }
+
+  return { valid: true };
 }
 
 /**
@@ -366,6 +416,7 @@ module.exports = {
   isConnected,
   getStatus,
   verifyUser,
+  verifySessionToken,
   loadAllFromMongo,
   migrateToMongoIfEmpty,
   persistVocabulary,

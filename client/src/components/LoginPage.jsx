@@ -44,14 +44,14 @@ export default function LoginPage({ onLoginSuccess, theme, setTheme }) {
 
       const data = await res.json();
       if (data.success) {
-        onLoginSuccess(data.user || { username: 'ruchit', name: 'Ruchit' });
+        onLoginSuccess(data.user || { username: 'ruchit', name: 'Ruchit' }, data.token);
       } else {
         setError(data.message || 'Invalid username or password.');
       }
     } catch (err) {
       // Fallback local check if offline
       if (username.trim().toLowerCase() === 'ruchit' && password.trim() === '114432') {
-        onLoginSuccess({ username: 'ruchit', name: 'Ruchit' });
+        onLoginSuccess({ username: 'ruchit', name: 'Ruchit' }, 'lp_offline_token');
       } else {
         setError('Invalid username or password.');
       }
@@ -86,8 +86,8 @@ export default function LoginPage({ onLoginSuccess, theme, setTheme }) {
         className="card card-elevated animate-fade-in"
         style={{
           width: '100%',
-          maxWidth: '420px',
-          padding: '2.5rem 2rem',
+          maxWidth: '400px',
+          padding: 'clamp(1.5rem, 5vw, 2.25rem) clamp(1.2rem, 5vw, 1.75rem)',
           borderRadius: 'var(--radius-xl)',
           background: 'var(--bg-card)',
           backdropFilter: 'blur(20px)',
@@ -162,7 +162,7 @@ export default function LoginPage({ onLoginSuccess, theme, setTheme }) {
                   borderRadius: 'var(--radius-md)',
                   padding: '0.75rem 1rem 0.75rem 2.5rem',
                   color: 'var(--text-primary)',
-                  fontSize: '0.95rem',
+                  fontSize: '1rem',
                   outline: 'none',
                   transition: 'border-color var(--transition-fast)'
                 }}
@@ -193,7 +193,7 @@ export default function LoginPage({ onLoginSuccess, theme, setTheme }) {
                   borderRadius: 'var(--radius-md)',
                   padding: '0.75rem 2.5rem 0.75rem 2.5rem',
                   color: 'var(--text-primary)',
-                  fontSize: '0.95rem',
+                  fontSize: '1rem',
                   outline: 'none',
                   transition: 'border-color var(--transition-fast)'
                 }}

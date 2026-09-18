@@ -5,17 +5,20 @@
  */
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const PRIMARY_MODEL = 'gemini-3.6-flash';
-const FALLBACK_MODEL = 'gemini-flash-latest';
+const MODELS = [
+  'gemini-flash-lite-latest', // Lowest latency & most permissive free-tier limits
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash'
+];
 
 /**
  * Low-level caller to Google Gemini generateContent API
  */
 async function callGemini(prompt, expectJson = false) {
-  const models = [PRIMARY_MODEL, FALLBACK_MODEL];
   let lastError = null;
 
-  for (const model of models) {
+  for (const model of MODELS) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const body = {
@@ -23,14 +26,13 @@ async function callGemini(prompt, expectJson = false) {
           {
             parts: [{ text: prompt }]
           }
-        ]
+        ],
+        generationConfig: {
+          maxOutputTokens: 350,
+          temperature: 0.5,
+          ...(expectJson ? { response_mime_type: 'application/json' } : {})
+        }
       };
-
-      if (expectJson) {
-        body.generationConfig = {
-          response_mime_type: 'application/json'
-        };
-      }
 
       const res = await fetch(url, {
         method: 'POST',

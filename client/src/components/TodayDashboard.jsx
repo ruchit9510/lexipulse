@@ -243,7 +243,7 @@ export default function TodayDashboard({
         )}
 
         {/* Action CTAs */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+        <div className="today-hero-actions">
           <button 
             className="btn btn-primary"
             onClick={onStartLearning}
@@ -264,7 +264,7 @@ export default function TodayDashboard({
       </div>
 
       {/* Progress & Review Metrics Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '1rem' }}>
         {/* Your Progress */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>

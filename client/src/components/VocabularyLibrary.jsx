@@ -186,7 +186,7 @@ export default function VocabularyLibrary({
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
           {filteredWords.map(w => {
             const p = w.progress || {};
             const isFav = Boolean(p.isFavorite);

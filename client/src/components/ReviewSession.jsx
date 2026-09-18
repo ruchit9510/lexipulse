@@ -182,11 +182,10 @@ export default function ReviewSession({
 
         {/* Action Buttons */}
         {revealed && (
-          <div className="animate-fade-in" style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+          <div className="animate-fade-in review-action-btns">
             <button 
               className="btn btn-danger"
               onClick={() => handleReviewOutcome('need_practice')}
-              style={{ flex: 1, maxWidth: '200px' }}
             >
               <RotateCcw size={16} />
               <span>Need Practice</span>
@@ -195,7 +194,6 @@ export default function ReviewSession({
             <button 
               className="btn btn-success"
               onClick={() => handleReviewOutcome('known')}
-              style={{ flex: 1, maxWidth: '200px' }}
             >
               <Check size={16} />
               <span>I Know This</span>

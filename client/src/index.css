@@ -135,7 +135,7 @@ body::after {
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
-  padding: 0 1.25rem 6rem 1.25rem;
+  padding: 0 1rem calc(5.5rem + env(safe-area-inset-bottom)) 1rem;
   flex: 1;
 }
 
@@ -596,32 +596,49 @@ h1, h2, h3, h4, .font-display {
   flex-shrink: 0;
 }
 
-/* Modal Overlay */
+/* Modal Overlay & Bottom Sheet for Mobile */
 .modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  padding: 1rem;
+  padding: 0;
 }
 
 .modal-content {
   background: var(--bg-surface);
   border: 1px solid var(--border-medium);
-  border-radius: var(--radius-xl);
+  border-radius: 24px 24px 0 0;
   width: 100%;
-  max-width: 540px;
-  max-height: 90vh;
+  max-width: 560px;
+  max-height: 88vh;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
-  padding: 2rem;
+  padding: 1.5rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom)) 1.25rem;
   position: relative;
-  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideUpModal 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (min-width: 640px) {
+  .modal-overlay {
+    align-items: center;
+    padding: 1.5rem;
+  }
+  .modal-content {
+    border-radius: var(--radius-xl);
+    padding: 2rem;
+    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes slideUpModal {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Custom Scrollbar */
@@ -641,4 +658,173 @@ h1, h2, h3, h4, .font-display {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* ------------------------------------------------------------- */
+/* Mobile Responsive Utility Classes & Touch Ergonomics          */
+/* ------------------------------------------------------------- */
+
+/* Today's Action CTAs */
+.today-hero-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.today-hero-actions .btn {
+  width: 100%;
+  min-height: 48px;
+}
+
+@media (min-width: 640px) {
+  .today-hero-actions {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+  }
+  .today-hero-actions .btn {
+    width: auto;
+  }
+}
+
+/* Learning Session Bottom Controls (Mobile-First 2x2 Thumb Ergonomics) */
+.learning-bottom-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.learning-confidence-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.learning-confidence-btns .btn {
+  width: 100%;
+  min-height: 48px;
+  font-size: 0.92rem;
+  padding: 0.75rem 0.5rem;
+}
+
+.learning-nav-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.learning-nav-btns .btn {
+  width: 100%;
+  min-height: 44px;
+}
+
+@media (min-width: 640px) {
+  .learning-bottom-bar {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .learning-confidence-btns {
+    display: flex;
+    width: auto;
+  }
+  .learning-confidence-btns .btn {
+    width: auto;
+  }
+  .learning-nav-btns {
+    display: flex;
+    gap: 0.75rem;
+    width: auto;
+  }
+  .learning-nav-btns .btn {
+    width: auto;
+  }
+}
+
+/* Review Action Buttons (Thumb Sized 50/50 Grid on Mobile) */
+.review-action-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.review-action-btns .btn {
+  width: 100%;
+  min-height: 48px;
+}
+
+@media (min-width: 640px) {
+  .review-action-btns {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    width: auto;
+  }
+  .review-action-btns .btn {
+    width: auto;
+    max-width: 200px;
+  }
+}
+
+/* Quiz Summary Action Buttons */
+.quiz-summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.quiz-summary-actions .btn {
+  width: 100%;
+  min-height: 48px;
+}
+
+@media (min-width: 640px) {
+  .quiz-summary-actions {
+    flex-direction: row;
+    justify-content: center;
+    width: auto;
+  }
+  .quiz-summary-actions .btn {
+    width: auto;
+  }
+}
+
+/* Prevent iOS Safari Viewport Auto-Zoom and ensure tap targets */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="password"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  .btn-icon {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .mobile-nav-btn {
+    min-height: 48px;
+  }
+
+  .card {
+    padding: 1.25rem 1rem;
+  }
+
+  .word-learning-card {
+    padding: 1.75rem 1.25rem;
+  }
+
+  .word-hero-title {
+    font-size: clamp(2rem, 9vw, 2.75rem);
+  }
 }

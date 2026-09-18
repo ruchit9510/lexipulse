@@ -82,7 +82,7 @@ app.post('/api/login', async (req, res) => {
       return res.json({
         success: true,
         user: auth.user,
-        token: 'lexipulse_session_ruchit_auth'
+        token: auth.token
       });
     }
 
@@ -93,6 +93,28 @@ app.post('/api/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ success: false, message: 'Server login error' });
+  }
+});
+
+/**
+ * Verify Single-Active-Session
+ * If logged in from another device, this invalidates the old device
+ */
+app.get('/api/auth/verify-session', async (req, res) => {
+  try {
+    const token = req.headers['x-session-token'] || req.query.token;
+    const username = req.headers['x-username'] || req.query.username || 'ruchit';
+    const result = await db.verifySessionToken(username, token);
+    if (result && result.valid) {
+      return res.json({ valid: true });
+    }
+    return res.status(401).json({
+      valid: false,
+      logout: true,
+      message: result?.message || 'You have been logged out because your account was logged in from another device.'
+    });
+  } catch (err) {
+    return res.status(500).json({ valid: false, error: err.message });
   }
 });
 
