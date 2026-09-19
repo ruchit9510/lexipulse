@@ -219,6 +219,19 @@ app.get('/api/words/all', (req, res) => {
 });
 
 /**
+ * Reset All Vocabulary Data from Database
+ */
+app.post('/api/vocabulary/reset', async (req, res) => {
+  try {
+    const result = await db.resetVocabularyData();
+    res.json(result);
+  } catch (err) {
+    console.error('[API] Error resetting vocabulary data:', err);
+    res.status(500).json({ success: false, message: 'Failed to reset vocabulary data: ' + err.message });
+  }
+});
+
+/**
  * Due Review Words (Spaced Repetition)
  */
 app.get('/api/words/review', (req, res) => {

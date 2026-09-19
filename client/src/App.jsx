@@ -643,6 +643,9 @@ export default function App() {
           theme={theme}
           setTheme={setTheme}
           onOpenThemeStudio={() => setIsThemeStudioOpen(true)}
+          onLogout={handleLogout}
+          user={user}
+          onResetData={loadAllData}
         />
       )}
 

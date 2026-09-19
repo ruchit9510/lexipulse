@@ -268,7 +268,56 @@ async function verifyUser(username, password) {
 
   if (isMongoConnected) {
     try {
-      const user = await User.findOne({ username: cleanUsername });
+      let user = await User.findOne({ username: cleanUsername });
+
+      // Auto-seed/recover if user does not exist on MongoDB (e.g. database was wiped/deleted)
+      if (!user && cleanUsername === 'ruchit' && cleanPassword === '114432') {
+        console.log('[MongoDB] Clean/wiped database detected. Auto-creating user ruchit and seeding baseline data...');
+        const { hash, salt } = hashPassword('114432');
+        user = await User.create({
+          username: 'ruchit',
+          password: hash,
+          passwordSalt: salt,
+          name: 'Ruchit',
+          currentSessionToken: sessionToken,
+          sessionCreatedAt: new Date(),
+          sessionLastActive: new Date(),
+          lastLoginAt: new Date(),
+          preferences: {
+            selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+            preferredTheme: 'obsidian',
+            designSettings: {
+              theme: 'obsidian',
+              density: 'comfortable',
+              radius: 'soft',
+              typography: 'modern',
+              motion: 'full',
+              customAccent: null
+            },
+            customThemes: []
+          },
+          gamification: {
+            totalXp: 0,
+            level: 1,
+            unlockedAchievements: []
+          }
+        });
+
+        // Ensure baseline collections and data are populated in MongoDB
+        await ensureBaselineData();
+
+        return {
+          success: true,
+          user: {
+            username: user.username,
+            name: user.name || 'Ruchit',
+            preferences: user.preferences,
+            gamification: user.gamification
+          },
+          token: sessionToken
+        };
+      }
+
       if (user && verifyPassword(cleanPassword, user.password, user.passwordSalt)) {
         user.currentSessionToken = sessionToken;
         user.sessionCreatedAt = new Date();
@@ -627,6 +676,164 @@ async function getUserPreferences(username) {
   }
 }
 
+/**
+ * Ensure baseline collections and data exist (Settings, Streak, Vocabulary, etc.)
+ */
+async function ensureBaselineData(localDb = null) {
+  if (!isConnected()) return;
+  try {
+    // 1. Settings
+    const settingsCount = await Settings.countDocuments();
+    if (settingsCount === 0) {
+      const defaultSettings = localDb?.settings || {
+        singletonId: 'app_settings',
+        dailyWordCount: 5,
+        autoQuiz: true,
+        theme: 'obsidian',
+        useLocalFallback: true,
+        syncStatus: 'idle',
+        driveConnected: false
+      };
+      await Settings.findOneAndUpdate(
+        { singletonId: 'app_settings' },
+        { $set: { ...defaultSettings, singletonId: 'app_settings' } },
+        { upsert: true }
+      );
+      console.log('[MongoDB] Baseline settings collection seeded.');
+    }
+
+    // 2. Streak
+    const streakCount = await Streak.countDocuments();
+    if (streakCount === 0) {
+      const defaultStreak = localDb?.streak || {
+        singletonId: 'global_streak',
+        currentStreak: 0,
+        maxStreak: 0,
+        lastCompletedDate: null,
+        completedDates: []
+      };
+      await Streak.findOneAndUpdate(
+        { singletonId: 'global_streak' },
+        { $set: { ...defaultStreak, singletonId: 'global_streak' } },
+        { upsert: true }
+      );
+      console.log('[MongoDB] Baseline streak collection seeded.');
+    }
+
+    // 3. Vocabulary & LearningProgress
+    const vocabCount = await Vocabulary.countDocuments();
+    if (vocabCount === 0) {
+      if (localDb && Object.keys(localDb.vocabulary || {}).length > 0) {
+        await migrateToMongoIfEmpty(localDb);
+      } else {
+        const defaultWords = [
+          {
+            id: 'vocab_resilient',
+            word: 'Resilient',
+            simpleMeaning: 'Able to withstand or recover quickly from difficult conditions.',
+            example: 'The engineering team built a resilient system that withstands high traffic spikes.',
+            howToUse: 'Use "resilient" to describe people, systems, or materials that bounce back from hardship.',
+            date: new Date().toISOString().split('T')[0],
+            firstSeenAt: new Date().toISOString(),
+            lastSyncedAt: new Date().toISOString()
+          },
+          {
+            id: 'vocab_pragmatic',
+            word: 'Pragmatic',
+            simpleMeaning: 'Dealing with things sensibly and realistically, based on practical considerations.',
+            example: 'She took a pragmatic approach to the problem, focusing on immediate solutions.',
+            howToUse: 'Use when prioritizing practical results over theoretical perfection.',
+            date: new Date().toISOString().split('T')[0],
+            firstSeenAt: new Date().toISOString(),
+            lastSyncedAt: new Date().toISOString()
+          },
+          {
+            id: 'vocab_ubiquitous',
+            word: 'Ubiquitous',
+            simpleMeaning: 'Present, appearing, or found everywhere.',
+            example: 'Smartphones have become ubiquitous in modern daily life.',
+            howToUse: 'Use when something is so common that you see it virtually everywhere.',
+            date: new Date().toISOString().split('T')[0],
+            firstSeenAt: new Date().toISOString(),
+            lastSyncedAt: new Date().toISOString()
+          },
+          {
+            id: 'vocab_serendipity',
+            word: 'Serendipity',
+            simpleMeaning: 'The occurrence and development of events by chance in a happy or beneficial way.',
+            example: 'Finding this helpful vocabulary tool was pure serendipity.',
+            howToUse: 'Use to describe pleasant, unexpected surprises or fortunate accidents.',
+            date: new Date().toISOString().split('T')[0],
+            firstSeenAt: new Date().toISOString(),
+            lastSyncedAt: new Date().toISOString()
+          },
+          {
+            id: 'vocab_ephemeral',
+            word: 'Ephemeral',
+            simpleMeaning: 'Lasting for a very short time; fleeting.',
+            example: 'Social media trends are often ephemeral, fading within days.',
+            howToUse: 'Use to describe things that are temporary, brief, or quickly passing.',
+            date: new Date().toISOString().split('T')[0],
+            firstSeenAt: new Date().toISOString(),
+            lastSyncedAt: new Date().toISOString()
+          }
+        ];
+        for (const w of defaultWords) {
+          await Vocabulary.findOneAndUpdate({ id: w.id }, { $set: w }, { upsert: true });
+          await LearningProgress.findOneAndUpdate(
+            { id: w.id },
+            {
+              $set: {
+                id: w.id,
+                word: w.word,
+                status: 'learning',
+                interval: 1,
+                easeFactor: 2.5,
+                reviewCount: 0,
+                correctCount: 0,
+                incorrectCount: 0,
+                lastReviewedDate: null,
+                nextReviewDate: null,
+                userSentence: '',
+                notes: '',
+                isFavorite: false,
+                history: []
+              }
+            },
+            { upsert: true }
+          );
+        }
+        console.log('[MongoDB] Baseline vocabulary collection seeded with 5 words.');
+      }
+    }
+  } catch (err) {
+    console.error('[MongoDB] Error in ensureBaselineData:', err.message);
+  }
+}
+
+/**
+ * Reset vocabulary data from MongoDB Atlas while preserving settings and user credentials
+ */
+async function resetVocabularyDataInMongo() {
+  if (!isConnected()) return false;
+  try {
+    await Vocabulary.deleteMany({});
+    await LearningProgress.deleteMany({});
+    await DailySession.deleteMany({});
+    await XPEvent.deleteMany({});
+    await LearningActivity.deleteMany({});
+    await Streak.findOneAndUpdate(
+      { singletonId: 'global_streak' },
+      { $set: { currentStreak: 0, maxStreak: 0, lastCompletedDate: null, completedDates: [] } }
+    );
+    console.log('[MongoDB] Successfully reset vocabulary, progress, sessions, XP, and streak from MongoDB Atlas.');
+    return true;
+  } catch (err) {
+    console.error('[MongoDB] Error resetting vocabulary data in Mongo:', err.message);
+    return false;
+  }
+}
+
 module.exports = {
   connectMongo,
   isConnected,
@@ -635,6 +842,8 @@ module.exports = {
   verifySessionToken,
   loadAllFromMongo,
   migrateToMongoIfEmpty,
+  ensureBaselineData,
+  resetVocabularyDataInMongo,
   persistVocabulary,
   persistProgress,
   persistDailySession,

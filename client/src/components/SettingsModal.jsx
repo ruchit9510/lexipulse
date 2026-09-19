@@ -14,7 +14,8 @@ import {
   Sun,
   Laptop,
   Database,
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 
 export default function SettingsModal({ 
@@ -24,7 +25,10 @@ export default function SettingsModal({
   syncing, 
   theme, 
   setTheme,
-  onOpenThemeStudio 
+  onOpenThemeStudio,
+  onLogout,
+  user,
+  onResetData
 }) {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +40,44 @@ export default function SettingsModal({
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [selectedContexts, setSelectedContexts] = useState(['daily', 'workplace']);
+  const [resetting, setResetting] = useState(false);
+  const [resetNotice, setResetNotice] = useState('');
+
+  const handleResetVocabulary = async () => {
+    const confirmed = window.confirm(
+      '⚠️ ARE YOU SURE YOU WANT TO RESET VOCABULARY DATA?\n\n' +
+      'This will permanently delete:\n' +
+      '• All vocabulary words from the database\n' +
+      '• All spaced-repetition (SRS) learning progress\n' +
+      '• All quiz results and daily sessions\n' +
+      '• All XP history and learning streak\n\n' +
+      'Your Google Drive settings and user login credentials will remain intact.\n\n' +
+      'Do you want to proceed?'
+    );
+
+    if (!confirmed) return;
+
+    setResetting(true);
+    setResetNotice('');
+    try {
+      const res = await fetch('/api/vocabulary/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResetNotice('Vocabulary data and learning progress have been successfully reset.');
+        if (onResetData) onResetData();
+        setTimeout(() => setResetNotice(''), 4000);
+      } else {
+        setErrorMsg(data.message || 'Failed to reset vocabulary data.');
+      }
+    } catch (err) {
+      setErrorMsg('Error resetting vocabulary: ' + err.message);
+    } finally {
+      setResetting(false);
+    }
+  };
 
   useEffect(() => {
     fetchSettings();
@@ -561,7 +603,8 @@ export default function SettingsModal({
           borderRadius: 'var(--radius-md)',
           padding: '0.85rem 1rem',
           fontSize: '0.8rem',
-          color: 'var(--text-secondary)'
+          color: 'var(--text-secondary)',
+          marginBottom: '2rem'
         }}>
           <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
             🔒 Single-Active-Device Session Protection
@@ -569,6 +612,121 @@ export default function SettingsModal({
           <div>
             Your account is locked to one active device at a time with salted scrypt hashing. If you log in on another device, this session will safely end automatically.
           </div>
+        </div>
+
+        {/* Section 6: Data Management & Reset Vocabulary */}
+        <div style={{
+          marginBottom: '2rem',
+          background: 'rgba(239, 68, 68, 0.04)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1.25rem'
+        }}>
+          <h3 style={{ fontSize: '1.05rem', color: 'var(--accent-danger)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <Database size={18} style={{ color: 'var(--accent-danger)' }} />
+            Data Management (Danger Zone)
+          </h3>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
+            Need a fresh start? Resetting will clear all vocabulary words, spaced-repetition schedules, quiz history, and streak progress from both MongoDB Atlas and local storage. Your settings and Google Drive credentials remain safe.
+          </p>
+
+          {resetNotice && (
+            <div style={{
+              background: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid var(--accent-success)',
+              color: 'var(--accent-success)',
+              padding: '0.65rem 0.9rem',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.85rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <CheckCircle2 size={16} />
+              <span>{resetNotice}</span>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleResetVocabulary}
+            disabled={resetting}
+            className="btn"
+            style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1.5px solid var(--accent-danger)',
+              color: 'var(--accent-danger)',
+              padding: '0.6rem 1.1rem',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              cursor: resetting ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {resetting ? <RefreshCw size={15} className="spin" /> : <Trash2 size={15} />}
+            <span>{resetting ? 'Resetting Database...' : 'Reset Vocabulary Data from DB'}</span>
+          </button>
+        </div>
+
+        {/* Section 7: Account & Session */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1.1rem 1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>Signed in as</span>
+              <span style={{ 
+                background: 'var(--accent-primary-subtle)', 
+                color: 'var(--accent-primary)', 
+                padding: '0.15rem 0.55rem', 
+                borderRadius: 'var(--radius-full)', 
+                fontSize: '0.8rem',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700
+              }}>
+                {user?.username || 'ruchit'}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+              LexiPulse Personal Vocabulary Assistant
+            </div>
+          </div>
+
+          {onLogout && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onLogout();
+              }}
+              className="btn"
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid var(--accent-danger)',
+                color: 'var(--accent-danger)',
+                padding: '0.55rem 1.1rem',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <LogOut size={16} />
+              <span>Log Out</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -139,7 +139,7 @@ export default function Navigation({
 
             {onLogout && (
               <button 
-                className="btn-icon"
+                className="btn-icon desktop-only-logout"
                 onClick={onLogout}
                 title="Log Out"
                 style={{ color: 'var(--text-muted)' }}

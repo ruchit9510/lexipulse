@@ -99,6 +99,9 @@ async function initMongoDb() {
     const connected = await mongo.connectMongo();
     if (connected) {
       const local = loadDb();
+      // Ensure baseline data exists in MongoDB (settings, streak, vocabulary)
+      await mongo.ensureBaselineData(local);
+
       // If Mongo is empty, migrate local data up to Atlas
       await mongo.migrateToMongoIfEmpty(local);
 
@@ -733,6 +736,33 @@ function saveWeeklyReport(report) {
   return report;
 }
 
+/**
+ * Reset vocabulary data across local DB and MongoDB Atlas
+ */
+async function resetVocabularyData() {
+  const db = loadDb();
+  db.vocabulary = {};
+  db.learningProgress = {};
+  db.dailySessions = {};
+  db.xpEvents = [];
+  db.learningActivities = [];
+  db.weeklyReports = {};
+  db.streak = {
+    currentStreak: 0,
+    maxStreak: 0,
+    lastCompletedDate: null,
+    completedDates: []
+  };
+  saveDb();
+
+  if (mongo.isConnected()) {
+    await mongo.resetVocabularyDataInMongo();
+  }
+
+  console.log('[Database] All vocabulary data, learning progress, and streak successfully reset.');
+  return { success: true, message: 'All vocabulary data and learning progress have been reset.' };
+}
+
 module.exports = {
   loadDb,
   saveDb,
@@ -760,6 +790,7 @@ module.exports = {
   getMongoUserPreferences: mongo.getUserPreferences,
   getWeeklyReports,
   saveWeeklyReport,
+  resetVocabularyData,
   verifyUser: mongo.verifyUser,
   verifySessionToken: mongo.verifySessionToken,
   getMongoStatus: mongo.getStatus

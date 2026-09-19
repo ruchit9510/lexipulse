@@ -525,6 +525,10 @@ p, .example-quote {
 }
 
 @media (max-width: 640px) {
+  .desktop-only-logout {
+    display: none !important;
+  }
+
   .navbar {
     padding: 0.5rem 0.75rem;
     margin-bottom: 1rem;
@@ -533,11 +537,15 @@ p, .example-quote {
 
   .nav-content {
     gap: 0.35rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .brand-logo {
     font-size: 1.05rem;
     gap: 0.4rem;
+    flex-shrink: 0;
   }
 
   .brand-badge {
@@ -553,27 +561,33 @@ p, .example-quote {
   }
 
   .sync-text-mobile {
-    display: inline;
+    display: none; /* Keep mobile sync button compact so it never overflows */
   }
 
   .sync-pill {
-    padding: 0.25rem 0.5rem;
+    padding: 0.35rem 0.5rem;
     font-size: 0.7rem;
-    gap: 0.25rem;
+    gap: 0.3rem;
+    min-width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .nav-actions {
-    gap: 0.2rem;
+    gap: 0.3rem;
+    flex-shrink: 0;
   }
 
   .btn-icon {
-    width: 2rem;
-    height: 2rem;
+    width: 2.2rem;
+    height: 2.2rem;
   }
 
   .btn-icon svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
   }
 
   .app-container {
