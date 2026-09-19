@@ -15,7 +15,7 @@ import ConfusingWordsSession from './components/ConfusingWordsSession';
 import WeeklyReviewModal from './components/WeeklyReviewModal';
 import AchievementsModal from './components/AchievementsModal';
 import { flushOfflineQueue, queueAction } from './services/offlineSync';
-import { getThemeSettings, applyThemeSettings, saveThemeSettings } from './services/themeEngine';
+import { getThemeSettings, applyThemeSettings, saveThemeSettings, syncThemePreferencesFromDb } from './services/themeEngine';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -96,10 +96,10 @@ export default function App() {
     // Initial session check
     checkActiveSession();
 
-    // Auto-poll session every 15 seconds to immediately detect logins from other devices
+    // Auto-poll session every 5 seconds to immediately detect logins from other devices
     const sessionPoll = setInterval(() => {
       checkActiveSession();
-    }, 15000);
+    }, 5000);
 
     // Auto-poll Google Drive every 60 seconds
     const intervalTimer = setInterval(() => {
@@ -132,7 +132,39 @@ export default function App() {
     window.addEventListener('offline', handleOffline);
     window.addEventListener('lexipulse:synced', handleSyncedEvent);
 
+    // Global fetch interceptor to attach session tokens & catch 401 superseded logouts
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+      if (typeof url === 'string' && url.startsWith('/api') && !url.includes('/api/login')) {
+        const token = localStorage.getItem('lexipulse_token');
+        const savedUser = localStorage.getItem('lexipulse_user');
+        const username = savedUser ? (JSON.parse(savedUser).username || 'ruchit') : 'ruchit';
+
+        args[1] = args[1] || {};
+        const existingHeaders = args[1].headers || {};
+        args[1].headers = {
+          ...existingHeaders,
+          ...(token ? { 'x-session-token': token } : {}),
+          'x-username': username
+        };
+      }
+
+      const response = await originalFetch(...args);
+      if (response.status === 401) {
+        try {
+          const clone = response.clone();
+          const body = await clone.json();
+          if (body && body.logout) {
+            handleLogout(body.message || 'Logged out because your account was logged in from another device.');
+          }
+        } catch (e) {}
+      }
+      return response;
+    };
+
     return () => {
+      window.fetch = originalFetch;
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('online', handleOnline);
@@ -146,6 +178,12 @@ export default function App() {
   const checkActiveSession = async () => {
     const token = localStorage.getItem('lexipulse_token');
     const savedUser = localStorage.getItem('lexipulse_user');
+    
+    // If user is saved in localStorage without an active token, force re-login so a token is issued
+    if (savedUser && !token) {
+      handleLogout('Session expired. Please sign in again to secure your account.');
+      return;
+    }
     if (!token || !savedUser) return;
 
     try {
@@ -172,24 +210,34 @@ export default function App() {
 
   const loadAllData = async () => {
     try {
-      const [todayRes, allRes, statsRes, statusRes] = await Promise.all([
+      const [todayRes, allRes, statsRes, statusRes, prefsRes] = await Promise.all([
         fetch('/api/words/today'),
         fetch('/api/words/all'),
         fetch('/api/stats'),
-        fetch('/api/status')
+        fetch('/api/status'),
+        fetch('/api/user/preferences')
       ]);
 
-      const [todayJson, allJson, statsJson, statusJson] = await Promise.all([
+      const [todayJson, allJson, statsJson, statusJson, prefsJson] = await Promise.all([
         todayRes.json(),
         allRes.json(),
         statsRes.json(),
-        statusRes.json()
+        statusRes.json(),
+        prefsRes.json()
       ]);
 
       if (todayJson.success) setTodayData(todayJson);
       if (allJson.success) setAllWords(allJson.words || []);
       if (statsJson.success) setStats(statsJson.stats);
       if (statusJson.success) setSyncStatus(statusJson);
+
+      // Sync design preferences and custom themes from DB
+      if (prefsJson.success && prefsJson.preferences) {
+        const applied = syncThemePreferencesFromDb(prefsJson.preferences);
+        if (applied && applied.theme && applied.theme !== theme) {
+          setTheme(applied.theme);
+        }
+      }
     } catch (e) {
       console.error('Failed to load initial application data:', e);
     }
@@ -400,6 +448,12 @@ export default function App() {
     localStorage.setItem('lexipulse_user', JSON.stringify(userData));
     if (token) {
       localStorage.setItem('lexipulse_token', token);
+    }
+    if (userData?.preferences) {
+      const applied = syncThemePreferencesFromDb(userData.preferences);
+      if (applied && applied.theme) {
+        setTheme(applied.theme);
+      }
     }
     loadAllData();
   };

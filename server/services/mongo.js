@@ -34,7 +34,19 @@ const userSchema = new mongoose.Schema({
       type: [String],
       default: ['Daily Conversation', 'Workplace', 'Software Development']
     },
-    preferredTheme: { type: String, default: 'obsidian' }
+    preferredTheme: { type: String, default: 'obsidian' },
+    designSettings: {
+      theme: { type: String, default: 'obsidian' },
+      density: { type: String, default: 'comfortable' },
+      radius: { type: String, default: 'soft' },
+      typography: { type: String, default: 'modern' },
+      motion: { type: String, default: 'full' },
+      customAccent: { type: String, default: null }
+    },
+    customThemes: {
+      type: Array,
+      default: []
+    }
   },
   gamification: {
     totalXp: { type: Number, default: 0 },
@@ -251,6 +263,9 @@ async function verifyUser(username, password) {
   const cleanPassword = String(password || '').trim();
   const sessionToken = 'lp_' + crypto.randomBytes(24).toString('hex');
 
+  // Always keep in-memory cache updated with newest session
+  localActiveSessions[cleanUsername] = sessionToken;
+
   if (isMongoConnected) {
     try {
       const user = await User.findOne({ username: cleanUsername });
@@ -267,7 +282,16 @@ async function verifyUser(username, password) {
             name: user.name || 'Ruchit',
             preferences: user.preferences || {
               selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
-              preferredTheme: 'obsidian'
+              preferredTheme: 'obsidian',
+              designSettings: {
+                theme: 'obsidian',
+                density: 'comfortable',
+                radius: 'soft',
+                typography: 'modern',
+                motion: 'full',
+                customAccent: null
+              },
+              customThemes: []
             },
             gamification: user.gamification || {
               totalXp: 0,
@@ -294,7 +318,16 @@ async function verifyUser(username, password) {
         name: 'Ruchit',
         preferences: {
           selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
-          preferredTheme: 'obsidian'
+          preferredTheme: 'obsidian',
+          designSettings: {
+            theme: 'obsidian',
+            density: 'comfortable',
+            radius: 'soft',
+            typography: 'modern',
+            motion: 'full',
+            customAccent: null
+          },
+          customThemes: []
         },
         gamification: {
           totalXp: 0,
@@ -315,7 +348,7 @@ async function verifyUser(username, password) {
  */
 async function verifySessionToken(username, token) {
   if (!token || !username) {
-    return { valid: false, message: 'Missing session parameters' };
+    return { valid: false, logout: true, message: 'Missing session parameters. Please log in again.' };
   }
   const cleanUsername = String(username).trim().toLowerCase();
 
@@ -323,15 +356,21 @@ async function verifySessionToken(username, token) {
     try {
       const user = await User.findOne({ username: cleanUsername });
       if (!user) {
-        return { valid: false, message: 'User not found' };
+        return { valid: false, logout: true, message: 'User not found' };
       }
-      if (user.currentSessionToken !== token) {
+      if (user.currentSessionToken && user.currentSessionToken !== token) {
         return {
           valid: false,
+          logout: true,
           reason: 'superseded',
           message: 'You have been logged out because your account was logged in from another device.'
         };
       }
+      if (!user.currentSessionToken) {
+        user.currentSessionToken = token;
+        await user.save();
+      }
+      localActiveSessions[cleanUsername] = user.currentSessionToken;
       return { valid: true };
     } catch (err) {
       console.error('[MongoDB] verifySessionToken error:', err.message);
@@ -342,9 +381,14 @@ async function verifySessionToken(username, token) {
   if (localActiveSessions[cleanUsername] && localActiveSessions[cleanUsername] !== token) {
     return {
       valid: false,
+      logout: true,
       reason: 'superseded',
       message: 'You have been logged out because your account was logged in from another device.'
     };
+  }
+
+  if (!localActiveSessions[cleanUsername]) {
+    localActiveSessions[cleanUsername] = token;
   }
 
   return { valid: true };
@@ -564,9 +608,22 @@ async function updateUserGamification(username, gamification) {
 async function updateUserPreferences(username, preferences) {
   if (!isConnected() || !username) return;
   try {
-    await User.findOneAndUpdate({ username }, { $set: { preferences } });
+    const cleanUsername = String(username).trim().toLowerCase();
+    await User.findOneAndUpdate({ username: cleanUsername }, { $set: { preferences } });
   } catch (e) {
     console.warn('[MongoDB] Error updating preferences:', e.message);
+  }
+}
+
+async function getUserPreferences(username) {
+  if (!isConnected() || !username) return null;
+  try {
+    const cleanUsername = String(username).trim().toLowerCase();
+    const user = await User.findOne({ username: cleanUsername });
+    return user ? user.preferences : null;
+  } catch (e) {
+    console.warn('[MongoDB] Error getting preferences:', e.message);
+    return null;
   }
 }
 
@@ -588,6 +645,7 @@ module.exports = {
   persistWeeklyReport,
   updateUserGamification,
   updateUserPreferences,
+  getUserPreferences,
   hashPassword,
   verifyPassword,
   User,

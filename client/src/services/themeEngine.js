@@ -286,12 +286,14 @@ export function saveCustomTheme(themeObj) {
     list.push(themeObj);
   }
   localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(list));
+  syncDesignPreferencesToDb({ customThemes: list });
   return list;
 }
 
 export function deleteCustomTheme(themeId) {
   const list = getCustomThemes().filter(t => t.id !== themeId);
   localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(list));
+  syncDesignPreferencesToDb({ customThemes: list });
   return list;
 }
 
@@ -321,6 +323,62 @@ export function getThemeSettings() {
 export function saveThemeSettings(settings) {
   localStorage.setItem(THEME_SETTINGS_KEY, JSON.stringify(settings));
   applyThemeSettings(settings);
+  syncDesignPreferencesToDb({ designSettings: settings });
+}
+
+export async function syncDesignPreferencesToDb(patch) {
+  try {
+    const token = localStorage.getItem('lexipulse_token');
+    const userStr = localStorage.getItem('lexipulse_user');
+    const username = userStr ? JSON.parse(userStr).username : 'ruchit';
+
+    await fetch('/api/user/preferences', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'x-session-token': token } : {}),
+        'x-username': username
+      },
+      body: JSON.stringify(patch)
+    });
+  } catch (e) {
+    // Offline or silent failure
+  }
+}
+
+export function syncThemePreferencesFromDb(dbPreferences) {
+  if (!dbPreferences) return null;
+
+  // 1. Sync custom themes from DB if present
+  if (Array.isArray(dbPreferences.customThemes) && dbPreferences.customThemes.length > 0) {
+    const localThemes = getCustomThemes();
+    const merged = [...localThemes];
+    dbPreferences.customThemes.forEach(dbTheme => {
+      const idx = merged.findIndex(t => t.id === dbTheme.id);
+      if (idx >= 0) {
+        merged[idx] = dbTheme;
+      } else {
+        merged.push(dbTheme);
+      }
+    });
+    localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(merged));
+  }
+
+  // 2. Sync design settings from DB
+  if (dbPreferences.designSettings) {
+    const current = getThemeSettings();
+    const mergedSettings = { ...current, ...dbPreferences.designSettings };
+    localStorage.setItem(THEME_SETTINGS_KEY, JSON.stringify(mergedSettings));
+    applyThemeSettings(mergedSettings);
+    return mergedSettings;
+  } else if (dbPreferences.preferredTheme) {
+    const current = getThemeSettings();
+    const mergedSettings = { ...current, theme: dbPreferences.preferredTheme };
+    localStorage.setItem(THEME_SETTINGS_KEY, JSON.stringify(mergedSettings));
+    applyThemeSettings(mergedSettings);
+    return mergedSettings;
+  }
+  return null;
 }
 
 // --------------------------------------------------------------------------

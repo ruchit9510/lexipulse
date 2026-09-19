@@ -123,6 +123,31 @@ app.get('/api/auth/verify-session', async (req, res) => {
   }
 });
 
+// Middleware to verify single active session on API routes
+async function requireActiveSession(req, res, next) {
+  const token = req.headers['x-session-token'] || req.query.token;
+  const username = req.headers['x-username'] || req.query.username || 'ruchit';
+  
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      logout: true,
+      message: 'Session token required. Please sign in again.'
+    });
+  }
+
+  const result = await db.verifySessionToken(username, token);
+  if (!result || !result.valid) {
+    return res.status(401).json({
+      success: false,
+      logout: true,
+      message: result?.message || 'You have been logged out because your account was logged in from another device.'
+    });
+  }
+
+  next();
+}
+
 /**
  * App & Sync Status
  */
@@ -508,12 +533,19 @@ app.get('/api/confusing-words/practice', (req, res) => {
  * ---------------- CONTEXT & USER PREFERENCES ----------------
  */
 
-app.get('/api/user/preferences', (req, res) => {
+app.get('/api/user/preferences', async (req, res) => {
   try {
-    const preferences = db.getUserPreferences();
+    const username = req.headers['x-username'] || req.query.username || 'ruchit';
+    let preferences = null;
+    if (db.getMongoUserPreferences) {
+      preferences = await db.getMongoUserPreferences(username);
+    }
+    if (!preferences) {
+      preferences = db.getUserPreferences();
+    }
     res.json({ success: true, preferences });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, preferences: db.getUserPreferences() });
   }
 });
 

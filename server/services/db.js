@@ -683,15 +683,36 @@ function getUserPreferences() {
   const db = loadDb();
   return db.userPreferences || {
     selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
-    preferredTheme: 'obsidian'
+    preferredTheme: 'obsidian',
+    designSettings: {
+      theme: 'obsidian',
+      density: 'comfortable',
+      radius: 'soft',
+      typography: 'modern',
+      motion: 'full',
+      customAccent: null
+    },
+    customThemes: []
   };
 }
 
 function updateUserPreferences(patch) {
   const db = loadDb();
-  db.userPreferences = { ...db.userPreferences, ...patch };
+  db.userPreferences = { 
+    ...db.userPreferences, 
+    ...patch,
+    designSettings: {
+      ...(db.userPreferences?.designSettings || {}),
+      ...(patch.designSettings || {})
+    }
+  };
+  if (patch.customThemes) {
+    db.userPreferences.customThemes = patch.customThemes;
+  }
   if (patch.preferredTheme) {
     db.settings.theme = patch.preferredTheme;
+  } else if (patch.designSettings?.theme) {
+    db.settings.theme = patch.designSettings.theme;
   }
   saveDb();
   mongo.updateUserPreferences('ruchit', db.userPreferences);
@@ -736,6 +757,7 @@ module.exports = {
   updateUserGamification,
   getUserPreferences,
   updateUserPreferences,
+  getMongoUserPreferences: mongo.getUserPreferences,
   getWeeklyReports,
   saveWeeklyReport,
   verifyUser: mongo.verifyUser,
