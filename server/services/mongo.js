@@ -5,14 +5,78 @@ let isMongoConnected = false;
 let mongoError = null;
 const localActiveSessions = {}; // username -> sessionToken (offline fallback)
 
+// Password hashing helpers using crypto.scrypt
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { hash, salt };
+}
+
+function verifyPassword(password, storedHash, salt) {
+  if (!salt) {
+    // Legacy plaintext comparison for fallback
+    return password === storedHash;
+  }
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(storedHash, 'hex'));
+}
+
 // Schemas
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password: { type: String, required: true }, // Simple direct/hashed credential
+  password: { type: String, required: true }, // Scrypt hash or legacy plaintext
+  passwordSalt: { type: String, default: null },
   name: { type: String, default: 'Ruchit' },
   currentSessionToken: { type: String, default: null },
+  sessionCreatedAt: { type: Date, default: null },
+  sessionLastActive: { type: Date, default: null },
+  preferences: {
+    selectedContexts: {
+      type: [String],
+      default: ['Daily Conversation', 'Workplace', 'Software Development']
+    },
+    preferredTheme: { type: String, default: 'obsidian' }
+  },
+  gamification: {
+    totalXp: { type: Number, default: 0 },
+    level: { type: Number, default: 1 },
+    unlockedAchievements: { type: [String], default: [] }
+  },
   createdAt: { type: Date, default: Date.now },
   lastLoginAt: { type: Date, default: Date.now }
+});
+
+const xpEventSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  username: { type: String, required: true, lowercase: true },
+  eventType: { type: String, required: true }, // 'daily_words' | 'srs_review' | 'quiz' | etc.
+  amount: { type: Number, required: true },
+  referenceId: { type: String, default: null },
+  description: String,
+  createdAt: { type: Date, default: Date.now }
+});
+
+const learningActivitySchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  username: { type: String, required: true, lowercase: true },
+  activityType: { type: String, required: true }, // 'srs_review' | 'quiz_question' | 'sentence_write' | 'quick_practice'
+  wordId: String,
+  word: String,
+  dimension: String, // 'meaning_recall' | 'word_recall' | 'context_understanding' | 'sentence_usage' | 'workplace_usage' | 'retention'
+  isSuccess: Boolean,
+  responseTimeMs: Number,
+  metadata: mongoose.Schema.Types.Mixed,
+  timestamp: { type: Date, default: Date.now }
+});
+
+const weeklyReportSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  username: { type: String, required: true, lowercase: true },
+  weekStart: { type: String, required: true }, // YYYY-MM-DD
+  statistics: mongoose.Schema.Types.Mixed,
+  strongestArea: String,
+  weakestArea: String,
+  difficultWords: [String],
+  generatedAt: { type: Date, default: Date.now }
 });
 
 const vocabularySchema = new mongoose.Schema({
@@ -87,11 +151,14 @@ const settingsSchema = new mongoose.Schema({
   syncStatus: { type: String, default: 'idle' },
   dailyWordCount: { type: Number, default: 5 },
   autoQuiz: { type: Boolean, default: true },
-  theme: { type: String, default: 'dark' },
+  theme: { type: String, default: 'obsidian' },
   useLocalFallback: { type: Boolean, default: true }
 });
 
 const User = mongoose.model('User', userSchema);
+const XPEvent = mongoose.model('XPEvent', xpEventSchema);
+const LearningActivity = mongoose.model('LearningActivity', learningActivitySchema);
+const WeeklyReport = mongoose.model('WeeklyReport', weeklyReportSchema);
 const Vocabulary = mongoose.model('Vocabulary', vocabularySchema);
 const LearningProgress = mongoose.model('LearningProgress', learningProgressSchema);
 const DailySession = mongoose.model('DailySession', dailySessionSchema);
@@ -130,18 +197,45 @@ async function connectMongo() {
 }
 
 /**
- * Ensure initial user ruchit / 114432 is in the User collection
+ * Ensure initial user ruchit / 114432 is in the User collection with secure scrypt hash
  */
 async function ensureSeedUser() {
   try {
     const existing = await User.findOne({ username: 'ruchit' });
     if (!existing) {
+      const { hash, salt } = hashPassword('114432');
       await User.create({
         username: 'ruchit',
-        password: '114432',
-        name: 'Ruchit'
+        password: hash,
+        passwordSalt: salt,
+        name: 'Ruchit',
+        preferences: {
+          selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+          preferredTheme: 'obsidian'
+        },
+        gamification: {
+          totalXp: 0,
+          level: 1,
+          unlockedAchievements: []
+        }
       });
-      console.log('[MongoDB] Initial user (ruchit) seeded in User collection.');
+      console.log('[MongoDB] Initial user (ruchit) seeded with secure password hash.');
+    } else if (!existing.passwordSalt && existing.password === '114432') {
+      // Upgrade plaintext seed user to scrypt hash
+      const { hash, salt } = hashPassword('114432');
+      existing.password = hash;
+      existing.passwordSalt = salt;
+      if (!existing.preferences) {
+        existing.preferences = {
+          selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+          preferredTheme: 'obsidian'
+        };
+      }
+      if (!existing.gamification) {
+        existing.gamification = { totalXp: 0, level: 1, unlockedAchievements: [] };
+      }
+      await existing.save();
+      console.log('[MongoDB] Upgraded existing user (ruchit) to secure scrypt password hash.');
     }
   } catch (err) {
     console.error('[MongoDB] Error ensuring seed user:', err.message);
@@ -160,15 +254,26 @@ async function verifyUser(username, password) {
   if (isMongoConnected) {
     try {
       const user = await User.findOne({ username: cleanUsername });
-      if (user && user.password === cleanPassword) {
+      if (user && verifyPassword(cleanPassword, user.password, user.passwordSalt)) {
         user.currentSessionToken = sessionToken;
+        user.sessionCreatedAt = new Date();
+        user.sessionLastActive = new Date();
         user.lastLoginAt = new Date();
         await user.save();
         return {
           success: true,
           user: {
             username: user.username,
-            name: user.name || 'Ruchit'
+            name: user.name || 'Ruchit',
+            preferences: user.preferences || {
+              selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+              preferredTheme: 'obsidian'
+            },
+            gamification: user.gamification || {
+              totalXp: 0,
+              level: 1,
+              unlockedAchievements: []
+            }
           },
           token: sessionToken
         };
@@ -186,7 +291,16 @@ async function verifyUser(username, password) {
       success: true,
       user: {
         username: 'ruchit',
-        name: 'Ruchit'
+        name: 'Ruchit',
+        preferences: {
+          selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+          preferredTheme: 'obsidian'
+        },
+        gamification: {
+          totalXp: 0,
+          level: 1,
+          unlockedAchievements: []
+        }
       },
       token: sessionToken
     };
@@ -411,6 +525,51 @@ async function persistSettings(settings) {
   }
 }
 
+async function persistXpEvent(event) {
+  if (!isConnected() || !event?.id) return;
+  try {
+    await XPEvent.findOneAndUpdate({ id: event.id }, { $set: event }, { upsert: true });
+  } catch (e) {
+    console.warn('[MongoDB] Error persisting XP event:', e.message);
+  }
+}
+
+async function persistLearningActivity(activity) {
+  if (!isConnected() || !activity?.id) return;
+  try {
+    await LearningActivity.findOneAndUpdate({ id: activity.id }, { $set: activity }, { upsert: true });
+  } catch (e) {
+    console.warn('[MongoDB] Error persisting learning activity:', e.message);
+  }
+}
+
+async function persistWeeklyReport(report) {
+  if (!isConnected() || !report?.id) return;
+  try {
+    await WeeklyReport.findOneAndUpdate({ id: report.id }, { $set: report }, { upsert: true });
+  } catch (e) {
+    console.warn('[MongoDB] Error persisting weekly report:', e.message);
+  }
+}
+
+async function updateUserGamification(username, gamification) {
+  if (!isConnected() || !username) return;
+  try {
+    await User.findOneAndUpdate({ username }, { $set: { gamification } });
+  } catch (e) {
+    console.warn('[MongoDB] Error updating gamification:', e.message);
+  }
+}
+
+async function updateUserPreferences(username, preferences) {
+  if (!isConnected() || !username) return;
+  try {
+    await User.findOneAndUpdate({ username }, { $set: { preferences } });
+  } catch (e) {
+    console.warn('[MongoDB] Error updating preferences:', e.message);
+  }
+}
+
 module.exports = {
   connectMongo,
   isConnected,
@@ -424,7 +583,17 @@ module.exports = {
   persistDailySession,
   persistStreak,
   persistSettings,
+  persistXpEvent,
+  persistLearningActivity,
+  persistWeeklyReport,
+  updateUserGamification,
+  updateUserPreferences,
+  hashPassword,
+  verifyPassword,
   User,
+  XPEvent,
+  LearningActivity,
+  WeeklyReport,
   Vocabulary,
   LearningProgress,
   DailySession,

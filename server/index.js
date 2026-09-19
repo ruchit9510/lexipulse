@@ -6,6 +6,11 @@ const db = require('./services/db');
 const driveService = require('./services/driveService');
 const geminiService = require('./services/geminiService');
 const { generateDailyQuiz } = require('./services/quizGenerator');
+const weaknessService = require('./services/weaknessService');
+const gamificationService = require('./services/gamificationService');
+const analyticsService = require('./services/analyticsService');
+const confusingWordsService = require('./services/confusingWordsService');
+const quickPracticeService = require('./services/quickPracticeService');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -205,6 +210,9 @@ app.get('/api/words/review', (req, res) => {
 /**
  * Record Review Outcome (SRS update)
  */
+/**
+ * Record Review Outcome (SRS update)
+ */
 app.post('/api/words/:id/review', (req, res) => {
   const { id } = req.params;
   const { outcome, date } = req.body; // 'known' or 'need_practice'
@@ -215,9 +223,13 @@ app.post('/api/words/:id/review', (req, res) => {
     return res.status(404).json({ success: false, message: 'Word not found' });
   }
 
+  // Award XP for completing an SRS review (+10 XP)
+  const xp = gamificationService.awardXp('srs_review', `${id}_${Date.now()}`);
+
   res.json({
     success: true,
-    word: updated
+    word: updated,
+    xp
   });
 });
 
@@ -240,7 +252,11 @@ app.post('/api/words/:id/sentence', (req, res) => {
   if (!progress) {
     return res.status(404).json({ success: false, message: 'Word not found' });
   }
-  res.json({ success: true, progress });
+
+  // Award XP for writing a practice sentence (+10 XP)
+  const xp = gamificationService.awardXp('sentence_written', `${id}_${Date.now()}`);
+
+  res.json({ success: true, progress, xp });
 });
 
 /**
@@ -250,7 +266,16 @@ app.post('/api/session/complete', (req, res) => {
   const { date, wordIds } = req.body;
   const dateStr = date || getLocalDateStr(req);
   const session = db.completeLearningSession(dateStr, wordIds);
-  res.json({ success: true, session, streak: db.loadDb().streak });
+
+  // Award XP for completing daily words (+20 XP, idempotent by dateStr)
+  const xp = gamificationService.awardXp('daily_words', dateStr);
+
+  res.json({
+    success: true,
+    session,
+    streak: db.loadDb().streak,
+    xp
+  });
 });
 
 /**
@@ -297,16 +322,26 @@ app.post('/api/quiz/submit', (req, res) => {
   const dateStr = date || getLocalDateStr(req);
 
   const session = db.recordQuizResult(dateStr, results, score, total);
+
+  // Award XP for quiz completion (+15 XP)
+  const xp = gamificationService.awardXp('quiz', dateStr);
+
+  // Bonus for perfect quiz (+10 XP)
+  if (total > 0 && score === total) {
+    gamificationService.awardXp('perfect_quiz', `perfect_${dateStr}`);
+  }
+
   res.json({
     success: true,
     session,
     streak: db.loadDb().streak,
-    stats: db.getStats()
+    stats: db.getStats(),
+    xp
   });
 });
 
 /**
- * ---------------- AI ENDPOINTS (Google Gemini Flash) ----------------
+ * ---------------- AI ENDPOINTS (Google Gemini Flash-Lite) ----------------
  */
 
 /**
@@ -315,7 +350,13 @@ app.post('/api/quiz/submit', (req, res) => {
 app.post('/api/ai/evaluate-sentence', async (req, res) => {
   try {
     const { word, sentence, meaning } = req.body || {};
-    const evaluation = await geminiService.evaluateSentence({ word, sentence, meaning });
+    const prefs = db.getUserPreferences();
+    const evaluation = await geminiService.evaluateSentence({
+      word,
+      sentence,
+      meaning,
+      contexts: prefs.selectedContexts || []
+    });
     res.json({ success: true, evaluation });
   } catch (err) {
     console.error('AI evaluate-sentence error:', err);
@@ -329,7 +370,13 @@ app.post('/api/ai/evaluate-sentence', async (req, res) => {
 app.post('/api/ai/word-insights', async (req, res) => {
   try {
     const { word, meaning, example } = req.body || {};
-    const insights = await geminiService.getWordInsights({ word, meaning, example });
+    const prefs = db.getUserPreferences();
+    const insights = await geminiService.getWordInsights({
+      word,
+      meaning,
+      example,
+      contexts: prefs.selectedContexts || []
+    });
     res.json({ success: true, insights });
   } catch (err) {
     console.error('AI word-insights error:', err);
@@ -352,11 +399,176 @@ app.post('/api/ai/quiz-hint', async (req, res) => {
 });
 
 /**
+ * ---------------- ADVANCED ANALYTICS & WEAKNESSES ----------------
+ */
+
+app.get('/api/analytics/weaknesses', (req, res) => {
+  try {
+    const profile = weaknessService.calculateWeaknessProfile();
+    res.json({ success: true, profile });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get('/api/analytics/overview', (req, res) => {
+  try {
+    const overview = analyticsService.getAnalyticsOverview();
+    res.json({ success: true, overview });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get('/api/analytics/weekly', (req, res) => {
+  try {
+    const summary = analyticsService.getWeeklySummary();
+    res.json({ success: true, summary });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * ---------------- 5-MINUTE QUICK PRACTICE ----------------
+ */
+
+app.get('/api/quick-practice', (req, res) => {
+  try {
+    const duration = parseInt(req.query.duration, 10) || 5;
+    const session = quickPracticeService.generateQuickSession(duration);
+    res.json({ success: true, session });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/quick-practice/complete', (req, res) => {
+  try {
+    const result = quickPracticeService.completeQuickSession(req.body || {});
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * ---------------- GAMIFICATION & ACHIEVEMENTS ----------------
+ */
+
+app.get('/api/xp/history', (req, res) => {
+  try {
+    const history = db.getXpHistory(30);
+    const gamification = db.getUserGamification();
+    const levelInfo = gamificationService.getLevelInfo(gamification.totalXp);
+    res.json({
+      success: true,
+      gamification,
+      levelInfo,
+      history
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get('/api/achievements', (req, res) => {
+  try {
+    const achievements = gamificationService.getAchievementsStatus();
+    res.json({ success: true, achievements });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * ---------------- CONFUSING WORDS MODE ----------------
+ */
+
+app.get('/api/confusing-words', (req, res) => {
+  try {
+    const pairs = confusingWordsService.getConfusingPairs();
+    res.json({ success: true, pairs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get('/api/confusing-words/practice', (req, res) => {
+  try {
+    const count = parseInt(req.query.count, 10) || 5;
+    const exercises = confusingWordsService.getConfusingPracticeSession(count);
+    res.json({ success: true, exercises });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * ---------------- CONTEXT & USER PREFERENCES ----------------
+ */
+
+app.get('/api/user/preferences', (req, res) => {
+  try {
+    const preferences = db.getUserPreferences();
+    res.json({ success: true, preferences });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.put('/api/user/preferences', (req, res) => {
+  try {
+    const updated = db.updateUserPreferences(req.body || {});
+    res.json({ success: true, preferences: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * ---------------- PWA OFFLINE ACTIONS SYNC ----------------
+ */
+
+app.post('/api/pwa/sync', (req, res) => {
+  try {
+    const { actions = [] } = req.body || {};
+    let syncedCount = 0;
+
+    actions.forEach(act => {
+      if (act.type === 'review' && act.wordId) {
+        db.recordWordReview(act.wordId, act.outcome, act.date);
+        syncedCount++;
+      } else if (act.type === 'sentence' && act.wordId) {
+        db.saveUserSentence(act.wordId, act.sentence);
+        syncedCount++;
+      } else if (act.type === 'quiz' && act.date) {
+        db.recordQuizResult(act.date, act.results, act.score, act.total);
+        syncedCount++;
+      }
+    });
+
+    res.json({ success: true, syncedCount, stats: db.getStats() });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
  * Learning Statistics & Progress
  */
 app.get('/api/stats', (req, res) => {
   const stats = db.getStats();
-  res.json({ success: true, stats });
+  const gamification = db.getUserGamification();
+  const levelInfo = gamificationService.getLevelInfo(gamification.totalXp);
+  res.json({
+    success: true,
+    stats: {
+      ...stats,
+      gamification,
+      levelInfo
+    }
+  });
 });
 
 /**

@@ -34,6 +34,32 @@ export default function QuizSession({
     fetchQuizQuestions();
   }, [dateStr, mode]);
 
+  // Keyboard navigation: 1, 2, 3, 4 for options; Enter/Space for next question
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+      if (!answered && currentQ) {
+        if (['1', '2', '3', '4'].includes(e.key)) {
+          const idx = parseInt(e.key, 10) - 1;
+          if (idx < currentQ.options.length) {
+            e.preventDefault();
+            handleSelectOption(idx);
+          }
+        }
+      } else if (answered && (e.key === 'Enter' || e.code === 'Space')) {
+        e.preventDefault();
+        handleNextQuestion();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onBack();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [answered, currentIndex, questions]);
+
   const fetchQuizQuestions = async () => {
     setLoading(true);
     setError(null);
@@ -86,12 +112,12 @@ export default function QuizSession({
       const total = questions.length;
       const percentage = Math.round((correctCount / total) * 100);
 
-      // Trigger celebratory confetti if score >= 80%
+      // Trigger subtle celebratory confetti if score >= 80%
       if (percentage >= 80) {
         try {
           confetti({
-            particleCount: 80,
-            spread: 70,
+            particleCount: 50,
+            spread: 60,
             origin: { y: 0.6 }
           });
         } catch (e) {}
@@ -143,7 +169,7 @@ export default function QuizSession({
 
   if (loading) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+      <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', maxWidth: '600px', margin: '0 auto' }}>
         <p style={{ color: 'var(--text-secondary)' }}>Preparing daily quiz challenge...</p>
       </div>
     );
@@ -151,7 +177,7 @@ export default function QuizSession({
 
   if (error) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+      <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', maxWidth: '600px', margin: '0 auto' }}>
         <p style={{ color: 'var(--accent-danger)', marginBottom: '1rem' }}>{error}</p>
         <button className="btn btn-secondary" onClick={onBack}>Back to Dashboard</button>
       </div>
@@ -169,7 +195,7 @@ export default function QuizSession({
     const difficultWords = userAnswers.filter(a => !a.isCorrect);
 
     return (
-      <div className="animate-fade-in card card-elevated" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+      <div className="animate-fade-in card card-elevated" style={{ textAlign: 'center', padding: '3.5rem 2rem', maxWidth: '600px', margin: '0 auto' }}>
         <div style={{
           width: '4.5rem',
           height: '4.5rem',
@@ -181,236 +207,213 @@ export default function QuizSession({
           justifyContent: 'center',
           margin: '0 auto 1.5rem auto'
         }}>
-          {percentage >= 80 ? <Sparkles size={36} /> : <Award size={36} />}
+          <Award size={36} />
         </div>
 
-        <h2 style={{ fontSize: '2rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-          {percentage === 100 ? 'Flawless Mastery! 🌟' : percentage >= 80 ? 'Daily Challenge Complete! 🎉' : 'Good Effort! Keep Going 💪'}
+        <h2 style={{ fontSize: '2rem', marginBottom: '0.4rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+          {percentage >= 80 ? 'Excellent Recall! 🎯' : 'Quiz Completed'}
         </h2>
-        
-        <div style={{ margin: '1.5rem 0' }}>
-          <span style={{ 
-            fontFamily: 'var(--font-display)', 
-            fontSize: '3.5rem', 
-            fontWeight: 800, 
-            color: percentage >= 80 ? 'var(--accent-success)' : 'var(--accent-warning)' 
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.75rem', fontSize: '0.95rem' }}>
+          You scored <strong>{correctCount}</strong> out of <strong>{total}</strong> ({percentage}%).
+        </p>
+
+        {/* Difficult words spotlight if any incorrect */}
+        {difficultWords.length > 0 && (
+          <div style={{
+            background: 'var(--bg-surface-elevated)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '1.25rem',
+            textAlign: 'left',
+            marginBottom: '2rem'
           }}>
-            {correctCount} / {total}
-          </span>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 600 }}>
-            {percentage}% Accuracy
-          </p>
-        </div>
-
-        {/* Word performance breakdown */}
-        <div style={{ 
-          background: 'rgba(255, 255, 255, 0.03)', 
-          border: '1px solid var(--border-subtle)', 
-          borderRadius: 'var(--radius-lg)', 
-          padding: '1.25rem', 
-          maxWidth: '480px', 
-          margin: '0 auto 2rem auto',
-          textAlign: 'left'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontWeight: 600, fontSize: '0.9rem' }}>
-            <span style={{ color: 'var(--accent-success)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <CheckCircle2 size={16} /> {correctCount} Strong
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-warning)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Words to practice
             </span>
-            {difficultWords.length > 0 && (
-              <span style={{ color: 'var(--accent-danger)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <XCircle size={16} /> {difficultWords.length} Needs Work
-              </span>
-            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
+              {difficultWords.map(a => (
+                <span key={a.questionId} className="badge badge-practice">
+                  {a.targetWord}
+                </span>
+              ))}
+            </div>
           </div>
+        )}
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-            {userAnswers.map((ans, i) => (
-              <span 
-                key={i} 
-                className={`badge ${ans.isCorrect ? 'badge-mastered' : 'badge-practice'}`}
-                style={{ fontSize: '0.85rem' }}
-              >
-                {ans.targetWord}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="quiz-summary-actions">
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button 
+            className="btn btn-primary"
+            onClick={onBack}
+            style={{ padding: '0.85rem 1.8rem', minHeight: '48px' }}
+          >
+            <span>Back to Dashboard</span>
+          </button>
+          
           {difficultWords.length > 0 && (
-            <button className="btn btn-secondary" onClick={onGoToReview}>
+            <button 
+              className="btn btn-secondary"
+              onClick={onGoToReview}
+              style={{ minHeight: '48px' }}
+            >
               <RotateCcw size={16} />
-              <span>Review Difficult Words</span>
+              <span>Review Queue</span>
             </button>
           )}
-
-          <button className="btn btn-primary" onClick={onBack} style={{ padding: '0.8rem 1.8rem' }}>
-            <span>Finish Daily Session</span>
-            <Check size={18} />
-          </button>
         </div>
       </div>
     );
   }
 
-  // Active Question View
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Top Header */}
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '680px', margin: '0 auto', width: '100%' }}>
+      {/* Top Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button className="btn-icon" onClick={onBack} title="Exit quiz">
+        <button className="btn-icon" onClick={onBack} title="Exit Quiz (Esc)">
           <ArrowLeft size={18} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="badge badge-learning" style={{ fontSize: '0.75rem' }}>
-            {currentQ.typeLabel}
-          </span>
-          <span style={{ 
-            fontFamily: 'var(--font-mono)', 
-            fontSize: '0.85rem', 
-            fontWeight: 700, 
-            color: 'var(--text-muted)' 
-          }}>
-            {currentIndex + 1} / {questions.length}
-          </span>
-        </div>
+        <span style={{ 
+          fontFamily: 'var(--font-mono)', 
+          fontSize: '0.85rem', 
+          fontWeight: 700, 
+          color: 'var(--accent-primary)',
+          letterSpacing: '0.05em' 
+        }}>
+          Question {currentIndex + 1} of {questions.length}
+        </span>
 
-        <div style={{ width: '2.5rem' }} /> {/* Spacer */}
+        {/* AI Hint button */}
+        <button 
+          className="btn-icon"
+          onClick={handleFetchAiHint}
+          disabled={loadingHint || answered}
+          title="Get AI Context Hint"
+          style={{ color: aiHint ? 'var(--accent-warning)' : 'var(--text-muted)' }}
+        >
+          <HelpCircle size={18} />
+        </button>
+      </div>
+
+      {/* Progress Track */}
+      <div style={{ width: '100%', height: '4px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+        <div 
+          style={{ 
+            width: `${((currentIndex + (answered ? 1 : 0)) / questions.length) * 100}%`, 
+            height: '100%', 
+            background: 'var(--accent-primary)', 
+            transition: 'width var(--transition-normal)' 
+          }} 
+        />
       </div>
 
       {/* Question Card */}
-      <div className="card card-elevated" style={{ padding: '2rem 1.75rem' }}>
-        <h3 style={{ fontSize: '1.3rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>
-          {currentQ.prompt}
-        </h3>
+      <div className="card card-elevated" style={{ padding: '2rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.08em' }}>
+            {currentQ.type === 'fill_blank' ? 'Fill in the Blank' : 'Choose the Correct Definition'}
+          </span>
+          <h3 style={{ fontSize: '1.35rem', color: 'var(--text-primary)', marginTop: '0.4rem', lineHeight: '1.4', fontWeight: 600 }}>
+            {currentQ.prompt}
+          </h3>
 
-        {/* Context box (Definition, Sentence with blank, or usage situation) */}
-        <div style={{ 
-          background: 'rgba(255, 255, 255, 0.03)', 
-          border: '1px solid var(--border-subtle)', 
-          borderRadius: 'var(--radius-md)', 
-          padding: '1.25rem', 
-          marginBottom: '1rem',
-          fontSize: '1.05rem',
-          color: 'var(--text-primary)',
-          lineHeight: '1.6'
-        }}>
-          {currentQ.contextText}
+          {currentQ.contextText && (
+            <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '0.5rem', borderLeft: '3px solid var(--accent-primary)', paddingLeft: '0.85rem' }}>
+              "{currentQ.contextText}"
+            </p>
+          )}
         </div>
 
-        {/* AI Hint Button & Bubble */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          {!answered && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleFetchAiHint}
-              disabled={loadingHint}
-              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-            >
-              <Sparkles size={14} style={{ color: 'var(--accent-warning)' }} />
-              <span>{loadingHint ? 'Generating Hint...' : aiHint ? 'Hide Hint' : '💡 Ask Gemini AI for Hint'}</span>
-            </button>
-          )}
-
-          {aiHint && (
-            <div style={{
-              marginTop: '0.5rem',
-              background: 'rgba(245, 158, 11, 0.08)',
-              border: '1px solid rgba(245, 158, 11, 0.25)',
-              borderRadius: 'var(--radius-md)',
-              padding: '0.65rem 0.9rem',
-              fontSize: '0.85rem',
-              color: 'var(--text-primary)'
-            }}>
-              <span style={{ fontWeight: 600, color: 'var(--accent-warning)' }}>💡 AI Hint: </span>
-              <span>{aiHint}</span>
+        {/* AI Hint Dropdown */}
+        {aiHint && (
+          <div style={{
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.85rem 1rem',
+            fontSize: '0.85rem',
+            color: 'var(--text-primary)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-warning)', fontWeight: 700, marginBottom: '0.2rem' }}>
+              <Sparkles size={14} /> AI Hint:
             </div>
-          )}
-        </div>
+            {aiHint}
+          </div>
+        )}
 
-        {/* Shuffled Options */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {/* Answer Options */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
           {currentQ.options.map((opt, idx) => {
-            const letter = String.fromCharCode(65 + idx);
-            let optionClass = 'quiz-option-btn';
+            const isSelected = selectedOption === idx;
+            const isCorrect = idx === currentQ.correctIndex;
+            let optClass = 'quiz-option-btn';
+
             if (answered) {
-              if (idx === currentQ.correctIndex) {
-                optionClass += ' correct';
-              } else if (idx === selectedOption) {
-                optionClass += ' incorrect';
-              }
+              if (isCorrect) optClass += ' correct';
+              else if (isSelected) optClass += ' incorrect';
+            } else if (isSelected) {
+              optClass += ' selected';
             }
 
             return (
               <button
                 key={idx}
-                className={optionClass}
+                className={optClass}
                 onClick={() => handleSelectOption(idx)}
                 disabled={answered}
+                style={{ minHeight: '52px' }}
               >
-                <span className="option-letter">{letter}</span>
-                <span style={{ flex: 1 }}>{opt}</span>
-                {answered && idx === currentQ.correctIndex && (
-                  <CheckCircle2 size={18} style={{ color: 'var(--accent-success)' }} />
-                )}
-                {answered && idx === selectedOption && idx !== currentQ.correctIndex && (
-                  <XCircle size={18} style={{ color: 'var(--accent-danger)' }} />
-                )}
+                <span className="option-letter">{['A', 'B', 'C', 'D'][idx]}</span>
+                <span style={{ flex: 1, textAlign: 'left', lineHeight: '1.35' }}>{opt}</span>
+                <span className="kbd-hint">{idx + 1}</span>
+                {answered && isCorrect && <CheckCircle2 size={18} style={{ color: 'var(--accent-success)', flexShrink: 0 }} />}
+                {answered && isSelected && !isCorrect && <XCircle size={18} style={{ color: 'var(--accent-danger)', flexShrink: 0 }} />}
               </button>
             );
           })}
         </div>
 
-        {/* Immediate Feedback Box */}
+        {/* Immediate Explanation Card after answer */}
         {answered && (
-          <div 
-            className="animate-fade-in"
-            style={{ 
-              marginTop: '1.5rem', 
-              padding: '1rem 1.25rem', 
-              borderRadius: 'var(--radius-md)',
-              background: selectedOption === currentQ.correctIndex 
-                ? 'var(--accent-success-subtle)' 
-                : 'var(--accent-danger-subtle)',
-              border: `1px solid ${selectedOption === currentQ.correctIndex ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', fontWeight: 700 }}>
+          <div className="animate-fade-in" style={{
+            background: selectedOption === currentQ.correctIndex ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+            border: `1px solid ${selectedOption === currentQ.correctIndex ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'}`,
+            borderRadius: 'var(--radius-md)',
+            padding: '1rem 1.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.35rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.9rem', color: selectedOption === currentQ.correctIndex ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
               {selectedOption === currentQ.correctIndex ? (
                 <>
-                  <CheckCircle2 size={18} style={{ color: 'var(--accent-success)' }} />
-                  <span style={{ color: 'var(--accent-success)' }}>Correct!</span>
+                  <CheckCircle2 size={16} /> Correct!
                 </>
               ) : (
                 <>
-                  <XCircle size={18} style={{ color: 'var(--accent-danger)' }} />
-                  <span style={{ color: 'var(--accent-danger)' }}>Not quite.</span>
+                  <XCircle size={16} /> Incorrect
                 </>
               )}
             </div>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: '1.5' }}>
-              {currentQ.explanation}
+
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-primary)', margin: 0, lineHeight: '1.4' }}>
+              <strong>{currentQ.targetWord}:</strong> {currentQ.explanation || currentQ.meaning}
             </p>
           </div>
         )}
-      </div>
 
-      {/* Bottom Actions */}
-      {answered && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        {/* Action Button */}
+        {answered && (
           <button 
-            className="btn btn-primary animate-fade-in"
+            className="btn btn-primary"
             onClick={handleNextQuestion}
-            style={{ padding: '0.8rem 1.8rem' }}
+            style={{ width: '100%', padding: '0.85rem', minHeight: '48px', marginTop: '0.5rem', fontSize: '1rem' }}
           >
-            <span>{isLast ? 'View Results' : 'Next Question'}</span>
+            <span>{isLast ? 'View Results' : 'Continue'}</span>
             <ArrowRight size={18} />
+            <span className="kbd-hint">Enter</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

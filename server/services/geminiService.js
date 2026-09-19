@@ -79,9 +79,9 @@ function cleanAndParseJson(text) {
 
 /**
  * 1. AI Sentence Coach
- * Evaluates a user-written sentence for a vocabulary word
+ * Evaluates a user-written sentence for a vocabulary word, tailored to user contexts
  */
-async function evaluateSentence({ word, sentence, meaning }) {
+async function evaluateSentence({ word, sentence, meaning, contexts = [] }) {
   if (!sentence || !sentence.trim()) {
     return {
       score: 0,
@@ -91,10 +91,15 @@ async function evaluateSentence({ word, sentence, meaning }) {
     };
   }
 
+  const contextInstruction = contexts.length > 0 
+    ? `The student prefers vocabulary context relevant to: ${contexts.join(', ')}. When polishing the sentence, orient it naturally toward these settings if appropriate.`
+    : '';
+
   const prompt = `You are a warm, encouraging, expert English vocabulary and grammar coach.
 A student is learning the vocabulary word "${word}" (Meaning: "${meaning || ''}").
 The student wrote this practice sentence:
 "${sentence}"
+${contextInstruction}
 
 Evaluate whether the word "${word}" is used accurately, naturally, and grammatically.
 Return ONLY a valid JSON object matching this exact schema:
@@ -122,18 +127,23 @@ Return ONLY a valid JSON object matching this exact schema:
 
 /**
  * 2. AI Word Insights & Mnemonics
- * Generates memory hooks and real-world workplace dialogue
+ * Generates memory hooks and real-world dialogue tailored to user contexts
  */
-async function getWordInsights({ word, meaning, example }) {
+async function getWordInsights({ word, meaning, example, contexts = [] }) {
+  const contextInstruction = contexts.length > 0
+    ? `The user is especially interested in these communication contexts: ${contexts.join(', ')}. Tailor the dialogue to reflect one of these settings.`
+    : 'Provide a realistic modern professional or workplace dialogue.';
+
   const prompt = `You are an expert English language educator specializing in rapid vocabulary retention.
 Vocabulary Word: "${word}"
 Definition: "${meaning || ''}"
 Example: "${example || ''}"
+${contextInstruction}
 
 Generate high-impact learning aids. Return ONLY a valid JSON object matching this schema:
 {
   "mnemonic": "<A vivid, memorable 1-2 sentence memory hook, rhyme, or visual association trick to never forget this word's meaning>",
-  "workplaceDialogue": "<A 2-4 line realistic modern business or professional workplace dialogue (Speaker A and Speaker B) naturally showcasing this word>",
+  "workplaceDialogue": "<A 2-4 line realistic modern dialogue (Speaker A and Speaker B) naturally showcasing this word in context>",
   "collocations": ["<common word pair 1>", "<common word pair 2>", "<common word pair 3>"]
 }`;
 

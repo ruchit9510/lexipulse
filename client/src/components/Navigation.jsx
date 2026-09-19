@@ -9,7 +9,9 @@ import {
   Flame, 
   Sun, 
   Moon,
-  LogOut 
+  LogOut,
+  Palette,
+  Zap 
 } from 'lucide-react';
 import SyncStatusPill from './SyncStatusPill';
 
@@ -24,6 +26,8 @@ export default function Navigation({
   theme, 
   setTheme,
   onOpenSettings,
+  onOpenThemeStudio,
+  onStartQuickPractice,
   onLogout 
 }) {
   const navItems = [
@@ -33,8 +37,9 @@ export default function Navigation({
     { id: 'progress', label: 'Progress', icon: TrendingUp }
   ];
 
+  const isDark = theme !== 'paper' && theme !== 'classic' && theme !== 'light';
   const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
+    setTheme(isDark ? 'paper' : 'obsidian');
   };
 
   return (
@@ -106,12 +111,22 @@ export default function Navigation({
 
             <SyncStatusPill status={syncStatus} onSync={onSync} syncing={syncing} />
 
+            {onOpenThemeStudio && (
+              <button
+                className="btn-icon"
+                onClick={onOpenThemeStudio}
+                title="Theme Studio (5 Design Systems)"
+              >
+                <Palette size={17} />
+              </button>
+            )}
+
             <button 
               className="btn-icon" 
               onClick={toggleTheme}
-              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              title={isDark ? 'Switch to Warm Paper (Light)' : 'Switch to Obsidian (Dark)'}
             >
-              {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+              {isDark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
 
             <button 
@@ -138,8 +153,8 @@ export default function Navigation({
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="mobile-bottom-nav">
+      {/* Mobile Bottom Navigation Bar (4 Primary Tabs with >=44px Touch Targets) */}
+      <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
         {navItems.map(item => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -148,6 +163,8 @@ export default function Navigation({
               key={item.id}
               className={`mobile-nav-btn ${isActive ? 'active' : ''}`}
               onClick={() => setCurrentTab(item.id)}
+              aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
             >
               <div style={{ position: 'relative' }}>
                 <Icon size={20} />
@@ -160,8 +177,8 @@ export default function Navigation({
                     color: '#fff',
                     fontSize: '0.6rem',
                     fontWeight: 700,
-                    width: 14,
-                    height: 14,
+                    width: 15,
+                    height: 15,
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
@@ -175,13 +192,6 @@ export default function Navigation({
             </button>
           );
         })}
-        <button
-          className={`mobile-nav-btn ${currentTab === 'settings' ? 'active' : ''}`}
-          onClick={onOpenSettings}
-        >
-          <Settings size={20} />
-          <span>Settings</span>
-        </button>
       </nav>
     </>
   );

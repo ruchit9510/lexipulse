@@ -9,6 +9,13 @@ import ProgressDashboard from './components/ProgressDashboard';
 import WordDetailModal from './components/WordDetailModal';
 import SettingsModal from './components/SettingsModal';
 import LoginPage from './components/LoginPage';
+import ThemeStudioModal from './components/ThemeStudioModal';
+import QuickPracticeModal from './components/QuickPracticeModal';
+import ConfusingWordsSession from './components/ConfusingWordsSession';
+import WeeklyReviewModal from './components/WeeklyReviewModal';
+import AchievementsModal from './components/AchievementsModal';
+import { flushOfflineQueue, queueAction } from './services/offlineSync';
+import { getThemeSettings, applyThemeSettings, saveThemeSettings } from './services/themeEngine';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -19,12 +26,21 @@ export default function App() {
       return null;
     }
   });
-  const [theme, setTheme] = useState(() => localStorage.getItem('lexipulse_theme') || 'dark');
+  const [theme, setTheme] = useState(() => {
+    const settings = getThemeSettings();
+    return settings.theme || 'obsidian';
+  });
   const [currentTab, setCurrentTab] = useState('today'); // 'today' | 'review' | 'library' | 'progress'
   const [activeFlow, setActiveFlow] = useState(null); // 'learning' | 'quiz' | null
   const [quizMode, setQuizMode] = useState('daily'); // 'daily' | 'review'
   const [selectedWord, setSelectedWord] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isThemeStudioOpen, setIsThemeStudioOpen] = useState(false);
+  const [isQuickPracticeOpen, setIsQuickPracticeOpen] = useState(false);
+  const [isConfusingWordsOpen, setIsConfusingWordsOpen] = useState(false);
+  const [isWeeklyReviewOpen, setIsWeeklyReviewOpen] = useState(false);
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   // Data states
   const [todayData, setTodayData] = useState(null);
@@ -34,10 +50,15 @@ export default function App() {
   const [syncing, setSyncing] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Apply Theme
+  // Apply Theme & Tokens
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('lexipulse_theme', theme);
+    const settings = getThemeSettings();
+    if (settings.theme !== theme) {
+      const updated = { ...settings, theme };
+      saveThemeSettings(updated);
+    } else {
+      applyThemeSettings(settings);
+    }
   }, [theme]);
 
   // Initial Data Load and URL check
@@ -85,9 +106,38 @@ export default function App() {
       handleSync(true);
     }, 60000);
 
+    // Network online/offline detection & auto-sync
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToast('🌐 Back online! Syncing offline actions...');
+      flushOfflineQueue().then((res) => {
+        if (res.synced > 0) {
+          showToast(`✨ Synced ${res.synced} offline actions`);
+          loadAllData();
+        }
+      });
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast('📡 You are offline. Changes will save locally.');
+    };
+    const handleSyncedEvent = (e) => {
+      if (e.detail?.synced > 0) {
+        showToast(`✨ Synced ${e.detail.synced} offline actions`);
+        loadAllData();
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('lexipulse:synced', handleSyncedEvent);
+
     return () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('lexipulse:synced', handleSyncedEvent);
       clearInterval(sessionPoll);
       clearInterval(intervalTimer);
     };
@@ -236,6 +286,21 @@ export default function App() {
 
   // Spaced Repetition Review Outcome
   const handleRecordReview = async (wordId, outcome) => {
+    if (!navigator.onLine) {
+      queueAction({ type: 'review', wordId, outcome, date: todayData?.date });
+      showToast('Saved offline. Will sync when reconnected.');
+      // Optimistically update local word
+      setAllWords(prev => prev.map(w => w.id === wordId ? {
+        ...w,
+        progress: {
+          ...w.progress,
+          status: outcome === 'known' ? 'mastered' : 'needs_practice',
+          reviewCount: (w.progress?.reviewCount || 0) + 1
+        }
+      } : w));
+      return;
+    }
+
     try {
       const res = await fetch(`/api/words/${wordId}/review`, {
         method: 'POST',
@@ -289,6 +354,22 @@ export default function App() {
 
   // Save Custom Sentence
   const handleSaveSentence = async (wordId, sentence) => {
+    if (!navigator.onLine) {
+      queueAction({ type: 'sentence', wordId, sentence });
+      showToast('Sentence saved offline. Will sync when reconnected.');
+      setAllWords(prev => prev.map(w => w.id === wordId ? {
+        ...w,
+        progress: { ...w.progress, userSentence: sentence }
+      } : w));
+      if (selectedWord && selectedWord.id === wordId) {
+        setSelectedWord(prev => ({
+          ...prev,
+          progress: { ...prev.progress, userSentence: sentence }
+        }));
+      }
+      return;
+    }
+
     try {
       const res = await fetch(`/api/words/${wordId}/sentence`, {
         method: 'POST',
@@ -379,8 +460,24 @@ export default function App() {
         theme={theme}
         setTheme={setTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenThemeStudio={() => setIsThemeStudioOpen(true)}
+        onStartQuickPractice={() => setIsQuickPracticeOpen(true)}
         onLogout={handleLogout}
       />
+
+      {/* Offline Status Banner */}
+      {!isOnline && (
+        <div style={{
+          background: 'var(--accent-warning)',
+          color: '#000',
+          textAlign: 'center',
+          padding: '0.4rem 1rem',
+          fontSize: '0.8rem',
+          fontWeight: 700
+        }}>
+          📡 Offline Mode Active — Your reviews and sentences are safely saved and will sync automatically upon reconnecting.
+        </div>
+      )}
 
       {/* Main App Container */}
       <main className="app-container">
@@ -431,6 +528,8 @@ export default function App() {
                 }}
                 onGoToReview={() => setCurrentTab('review')}
                 onSelectWord={w => setSelectedWord(w)}
+                onStartQuickPractice={() => setIsQuickPracticeOpen(true)}
+                onOpenConfusingWords={() => setIsConfusingWordsOpen(true)}
               />
             )}
 
@@ -455,6 +554,10 @@ export default function App() {
                 stats={stats}
                 words={allWords}
                 onSelectWord={w => setSelectedWord(w)}
+                onOpenWeeklyReview={() => setIsWeeklyReviewOpen(true)}
+                onOpenAchievements={() => setIsAchievementsOpen(true)}
+                onStartQuickPractice={() => setIsQuickPracticeOpen(true)}
+                onOpenConfusingWords={() => setIsConfusingWordsOpen(true)}
               />
             )}
           </>
@@ -484,6 +587,49 @@ export default function App() {
           syncing={syncing}
           theme={theme}
           setTheme={setTheme}
+          onOpenThemeStudio={() => setIsThemeStudioOpen(true)}
+        />
+      )}
+
+      {/* Theme Studio Modal */}
+      {isThemeStudioOpen && (
+        <ThemeStudioModal
+          currentTheme={theme}
+          onSelectTheme={(t) => setTheme(t)}
+          onClose={() => setIsThemeStudioOpen(false)}
+        />
+      )}
+
+      {/* Quick Practice Modal */}
+      {isQuickPracticeOpen && (
+        <QuickPracticeModal
+          onClose={() => setIsQuickPracticeOpen(false)}
+          onRecordReview={handleRecordReview}
+          onRefreshStats={loadAllData}
+        />
+      )}
+
+      {/* Confusing Words Mode Modal */}
+      {isConfusingWordsOpen && (
+        <ConfusingWordsSession
+          onClose={() => setIsConfusingWordsOpen(false)}
+          onRefreshStats={loadAllData}
+        />
+      )}
+
+      {/* Weekly Review Modal */}
+      {isWeeklyReviewOpen && (
+        <WeeklyReviewModal
+          onClose={() => setIsWeeklyReviewOpen(false)}
+          onSelectWord={(w) => setSelectedWord(w)}
+          onStartQuickPractice={() => setIsQuickPracticeOpen(true)}
+        />
+      )}
+
+      {/* Achievements & Gamification Modal */}
+      {isAchievementsOpen && (
+        <AchievementsModal
+          onClose={() => setIsAchievementsOpen(false)}
         />
       )}
     </div>

@@ -36,8 +36,20 @@ const DEFAULT_STATE = {
     syncStatus: 'idle',
     dailyWordCount: 5,
     autoQuiz: true,
-    theme: 'dark',
+    theme: 'obsidian',
     useLocalFallback: true
+  },
+  xpEvents: [], // list of XP events { id, username, eventType, amount, referenceId, description, createdAt }
+  learningActivities: [], // list of activities for weakness calculation
+  weeklyReports: {}, // weekStart -> report
+  userPreferences: {
+    selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+    preferredTheme: 'obsidian'
+  },
+  gamification: {
+    totalXp: 0,
+    level: 1,
+    unlockedAchievements: []
   }
 };
 
@@ -56,6 +68,11 @@ function loadDb() {
       dbCache.dailySessions = dbCache.dailySessions || {};
       dbCache.streak = { ...DEFAULT_STATE.streak, ...(dbCache.streak || {}) };
       dbCache.settings = { ...DEFAULT_STATE.settings, ...(dbCache.settings || {}) };
+      dbCache.xpEvents = dbCache.xpEvents || [];
+      dbCache.learningActivities = dbCache.learningActivities || [];
+      dbCache.weeklyReports = dbCache.weeklyReports || {};
+      dbCache.userPreferences = { ...DEFAULT_STATE.userPreferences, ...(dbCache.userPreferences || {}) };
+      dbCache.gamification = { ...DEFAULT_STATE.gamification, ...(dbCache.gamification || {}) };
       return dbCache;
     } catch (err) {
       console.error('Error loading DB file, resetting to defaults:', err);
@@ -295,6 +312,15 @@ function recordWordReview(wordId, outcome, dateStr) {
     timestamp: new Date().toISOString()
   });
 
+  // Track learning activity signal
+  recordLearningActivity({
+    activityType: 'srs_review',
+    wordId,
+    word: item.word,
+    dimension: isKnown ? 'retention' : 'meaning_recall',
+    isSuccess: isKnown
+  });
+
   saveDb();
 
   // Async persist to MongoDB Atlas
@@ -323,6 +349,16 @@ function saveUserSentence(wordId, sentence) {
   const db = loadDb();
   if (!db.learningProgress[wordId]) return null;
   db.learningProgress[wordId].userSentence = sentence || '';
+
+  // Track sentence practice activity
+  recordLearningActivity({
+    activityType: 'sentence_write',
+    wordId,
+    word: db.vocabulary[wordId]?.word,
+    dimension: 'sentence_usage',
+    isSuccess: Boolean(sentence && sentence.trim().length > 3)
+  });
+
   saveDb();
   mongo.persistProgress(db.learningProgress[wordId]);
   return db.learningProgress[wordId];
@@ -358,6 +394,21 @@ function recordQuizResult(dateStr, results, score, total) {
         p.nextReviewDate = tomorrow;
       }
     }
+
+    // Track dimension activity signal
+    const dim = res.type === 'meaning_to_word' ? 'word_recall'
+      : res.type === 'word_to_meaning' ? 'meaning_recall'
+      : res.type === 'situation_context' ? 'workplace_usage'
+      : res.type === 'sentence_select' ? 'sentence_usage'
+      : 'context_understanding';
+
+    recordLearningActivity({
+      activityType: 'quiz_question',
+      wordId: res.wordId,
+      word: res.targetWord,
+      dimension: dim,
+      isSuccess: Boolean(res.isCorrect)
+    });
   });
 
   // Update streak
@@ -532,6 +583,135 @@ function getRawSettings() {
   return db.settings;
 }
 
+/**
+ * Record a learning activity for weakness calculation
+ */
+function recordLearningActivity(act) {
+  const db = loadDb();
+  const activity = {
+    id: act.id || 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+    username: act.username || 'ruchit',
+    activityType: act.activityType,
+    wordId: act.wordId || null,
+    word: act.word || null,
+    dimension: act.dimension || 'retention',
+    isSuccess: Boolean(act.isSuccess),
+    responseTimeMs: act.responseTimeMs || null,
+    metadata: act.metadata || {},
+    timestamp: act.timestamp || new Date().toISOString()
+  };
+  db.learningActivities.push(activity);
+  // Keep last 1000 activities in memory/local
+  if (db.learningActivities.length > 1000) {
+    db.learningActivities = db.learningActivities.slice(-1000);
+  }
+  saveDb();
+  mongo.persistLearningActivity(activity);
+  return activity;
+}
+
+function getLearningActivities(limit = 500) {
+  const db = loadDb();
+  return (db.learningActivities || []).slice(-limit);
+}
+
+/**
+ * Record an XP Event (Idempotent)
+ */
+function recordXp(event) {
+  const db = loadDb();
+  if (!event || !event.id) return { success: false, message: 'Missing event ID' };
+
+  // Check idempotency: if event.id already exists, return current total without re-awarding
+  const existing = (db.xpEvents || []).find(e => e.id === event.id);
+  if (existing) {
+    return {
+      success: true,
+      alreadyAwarded: true,
+      event: existing,
+      gamification: db.gamification
+    };
+  }
+
+  const xpItem = {
+    id: event.id,
+    username: event.username || 'ruchit',
+    eventType: event.eventType,
+    amount: event.amount,
+    referenceId: event.referenceId || null,
+    description: event.description || '',
+    createdAt: event.createdAt || new Date().toISOString()
+  };
+
+  db.xpEvents.push(xpItem);
+  db.gamification.totalXp = (db.gamification.totalXp || 0) + event.amount;
+
+  // Level formula: Level = floor(sqrt(totalXp / 50)) + 1
+  db.gamification.level = Math.max(1, Math.floor(Math.sqrt(db.gamification.totalXp / 50)) + 1);
+
+  saveDb();
+  mongo.persistXpEvent(xpItem);
+  mongo.updateUserGamification(event.username || 'ruchit', db.gamification);
+
+  return {
+    success: true,
+    alreadyAwarded: false,
+    event: xpItem,
+    gamification: db.gamification
+  };
+}
+
+function getXpHistory(limit = 50) {
+  const db = loadDb();
+  return [...(db.xpEvents || [])].reverse().slice(0, limit);
+}
+
+function getUserGamification() {
+  const db = loadDb();
+  return db.gamification || { totalXp: 0, level: 1, unlockedAchievements: [] };
+}
+
+function updateUserGamification(patch) {
+  const db = loadDb();
+  db.gamification = { ...db.gamification, ...patch };
+  saveDb();
+  mongo.updateUserGamification('ruchit', db.gamification);
+  return db.gamification;
+}
+
+function getUserPreferences() {
+  const db = loadDb();
+  return db.userPreferences || {
+    selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+    preferredTheme: 'obsidian'
+  };
+}
+
+function updateUserPreferences(patch) {
+  const db = loadDb();
+  db.userPreferences = { ...db.userPreferences, ...patch };
+  if (patch.preferredTheme) {
+    db.settings.theme = patch.preferredTheme;
+  }
+  saveDb();
+  mongo.updateUserPreferences('ruchit', db.userPreferences);
+  return db.userPreferences;
+}
+
+function getWeeklyReports() {
+  const db = loadDb();
+  return db.weeklyReports || {};
+}
+
+function saveWeeklyReport(report) {
+  const db = loadDb();
+  if (!report || !report.weekStart) return null;
+  db.weeklyReports[report.weekStart] = report;
+  saveDb();
+  mongo.persistWeeklyReport(report);
+  return report;
+}
+
 module.exports = {
   loadDb,
   saveDb,
@@ -548,6 +728,16 @@ module.exports = {
   getSettings,
   updateSettings,
   getRawSettings,
+  recordLearningActivity,
+  getLearningActivities,
+  recordXp,
+  getXpHistory,
+  getUserGamification,
+  updateUserGamification,
+  getUserPreferences,
+  updateUserPreferences,
+  getWeeklyReports,
+  saveWeeklyReport,
   verifyUser: mongo.verifyUser,
   verifySessionToken: mongo.verifySessionToken,
   getMongoStatus: mongo.getStatus

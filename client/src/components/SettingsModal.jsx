@@ -23,7 +23,8 @@ export default function SettingsModal({
   onSync, 
   syncing, 
   theme, 
-  setTheme 
+  setTheme,
+  onOpenThemeStudio 
 }) {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,10 +35,40 @@ export default function SettingsModal({
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [selectedContexts, setSelectedContexts] = useState(['daily', 'workplace']);
 
   useEffect(() => {
     fetchSettings();
+    fetchPreferences();
   }, []);
+
+  const fetchPreferences = async () => {
+    try {
+      const res = await fetch('/api/user/preferences');
+      const data = await res.json();
+      if (data.success && data.preferences?.contexts) {
+        setSelectedContexts(data.preferences.contexts);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const toggleContext = async (ctxId) => {
+    const updated = selectedContexts.includes(ctxId)
+      ? selectedContexts.filter(c => c !== ctxId)
+      : [...selectedContexts, ctxId];
+    setSelectedContexts(updated);
+    try {
+      await fetch('/api/user/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contexts: updated })
+      });
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -454,30 +485,89 @@ export default function SettingsModal({
           </form>
         </div>
 
-        {/* Section 3: Appearance & Preferences */}
-        <div>
-          <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-            Appearance & Preferences
+        {/* Section 3: Context Personalization */}
+        <div style={{ marginBottom: '2rem' }}>
+          <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <Sparkles size={18} style={{ color: 'var(--accent-primary)' }} />
+            Context Personalization (AI Prompts & Examples)
+          </h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+            Select the domains where you use English most often. Gemini Flash-Lite AI will tailor sentence feedback, mnemonics, and workplace dialogues to these contexts.
+          </p>
+
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {[
+              { id: 'daily', label: 'Daily Life & Social' },
+              { id: 'workplace', label: 'Workplace & Business' },
+              { id: 'software', label: 'Software Engineering & Tech' },
+              { id: 'meetings', label: 'Meetings & Presentations' },
+              { id: 'academic', label: 'Academic & Writing' },
+              { id: 'casual', label: 'Casual English & Slang' }
+            ].map(ctx => {
+              const active = selectedContexts.includes(ctx.id);
+              return (
+                <button
+                  key={ctx.id}
+                  type="button"
+                  onClick={() => toggleContext(ctx.id)}
+                  style={{
+                    padding: '0.5rem 0.9rem',
+                    borderRadius: 'var(--radius-full)',
+                    border: `1.5px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                    background: active ? 'var(--accent-primary-subtle)' : 'rgba(255, 255, 255, 0.03)',
+                    color: active ? 'var(--accent-primary)' : 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-fast)'
+                  }}
+                >
+                  {active ? '✓ ' : '+ '}{ctx.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Section 4: Appearance & Theme Studio */}
+        <div style={{ marginBottom: '2rem' }}>
+          <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <Moon size={18} style={{ color: 'var(--accent-primary)' }} />
+            Appearance & Theme Studio
           </h3>
 
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button
-              className={`btn ${theme === 'dark' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setTheme('dark')}
-              style={{ flex: 1, padding: '0.65rem' }}
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                if (onOpenThemeStudio) {
+                  onClose();
+                  onOpenThemeStudio();
+                }
+              }}
+              style={{ flex: '1 1 200px', padding: '0.75rem' }}
             >
-              <Moon size={16} />
-              <span>Dark</span>
+              <Sparkles size={16} />
+              <span>Launch Theme Studio (5 Themes)</span>
             </button>
+          </div>
+        </div>
 
-            <button
-              className={`btn ${theme === 'light' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setTheme('light')}
-              style={{ flex: 1, padding: '0.65rem' }}
-            >
-              <Sun size={16} />
-              <span>Light</span>
-            </button>
+        {/* Section 5: Security & Single Active Session */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)',
+          padding: '0.85rem 1rem',
+          fontSize: '0.8rem',
+          color: 'var(--text-secondary)'
+        }}>
+          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
+            🔒 Single-Active-Device Session Protection
+          </div>
+          <div>
+            Your account is locked to one active device at a time with salted scrypt hashing. If you log in on another device, this session will safely end automatically.
           </div>
         </div>
       </div>

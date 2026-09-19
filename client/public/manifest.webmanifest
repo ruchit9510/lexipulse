@@ -1,0 +1,17 @@
+{
+  "name": "LexiPulse — Daily Vocabulary & Spaced Repetition",
+  "short_name": "LexiPulse",
+  "description": "Master English vocabulary with daily curated words, spaced repetition, AI context coaching, and 5 distinct design themes.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090a0f",
+  "theme_color": "#090a0f",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

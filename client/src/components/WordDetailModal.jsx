@@ -33,6 +33,15 @@ export default function WordDetailModal({
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [showAiInsights, setShowAiInsights] = useState(false);
 
+  // Close on Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const speak = (text) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -112,6 +121,9 @@ export default function WordDetailModal({
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
+        {/* Mobile Bottom Sheet Handle */}
+        <div className="sheet-handle" />
+
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
           <div>
@@ -357,6 +369,96 @@ export default function WordDetailModal({
               </div>
             )}
           </div>
+
+          {/* Memory Strength & Ebbinghaus Forgetting Curve Visualization */}
+          {(() => {
+            const interval = p.interval || 1;
+            const reviewCount = p.reviewCount || 0;
+            const lastReviewed = p.lastReviewedAt ? new Date(p.lastReviewedAt) : null;
+            const daysElapsed = lastReviewed 
+              ? Math.max(0, Math.floor((new Date() - lastReviewed) / (1000 * 60 * 60 * 24)))
+              : 0;
+            const stability = Math.max(1, interval * 1.5);
+            const retentionRate = Math.min(100, Math.max(10, Math.round(Math.exp(-daysElapsed / stability) * 100)));
+            const srsStage = Math.min(6, reviewCount);
+            const nextReviewStr = p.nextReviewDate 
+              ? new Date(p.nextReviewDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              : 'Today';
+
+            let retentionColor = 'var(--accent-success)';
+            let statusLabel = 'Optimal Memory Retention';
+            if (retentionRate < 60) {
+              retentionColor = 'var(--accent-danger)';
+              statusLabel = 'Memory Decay Warning — Review Due';
+            } else if (retentionRate < 80) {
+              retentionColor = 'var(--accent-warning)';
+              statusLabel = 'Approaching Forgetting Threshold';
+            }
+
+            return (
+              <div style={{
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Clock size={16} style={{ color: retentionColor }} />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Memory Strength & Forgetting Curve
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: retentionColor }}>
+                    {retentionRate}% Retention
+                  </span>
+                </div>
+
+                {/* Ebbinghaus Retention Bar */}
+                <div>
+                  <div style={{ height: '7px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${retentionRate}%`,
+                      height: '100%',
+                      background: retentionColor,
+                      borderRadius: 'var(--radius-full)',
+                      transition: 'width 0.4s ease'
+                    }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                    <span>{statusLabel}</span>
+                    <span>Next Review: {nextReviewStr}</span>
+                  </div>
+                </div>
+
+                {/* SRS Stages Dots */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>SRS Ladder:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    {[1, 2, 3, 4, 5, 6].map(stg => (
+                      <div
+                        key={stg}
+                        title={`SRS Stage ${stg}`}
+                        style={{
+                          width: '18px',
+                          height: '6px',
+                          borderRadius: 'var(--radius-full)',
+                          background: stg <= srsStage ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.1)',
+                          transition: 'background 0.3s ease'
+                        }}
+                      />
+                    ))}
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--accent-primary)', marginLeft: '0.3rem' }}>
+                      Stage {srsStage}/6
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Learning Statistics Card */}
           <div style={{

@@ -42,6 +42,37 @@ export default function ReviewSession({
     }
   };
 
+  // Keyboard Navigation: Space (Reveal), 1 (Need Practice), 2 (I Know This), F (Favorite), Esc (Exit)
+  useEffect(() => {
+    if (typeof activeReviewIndex !== 'number') return;
+    const word = dueWords[activeReviewIndex];
+    if (!word) return;
+
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setRevealed(true);
+      } else if (e.key === '1') {
+        e.preventDefault();
+        if (revealed) handleReviewOutcome('need_practice');
+      } else if (e.key === '2') {
+        e.preventDefault();
+        if (revealed) handleReviewOutcome('known');
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        onToggleFavorite(word.id);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setActiveReviewIndex(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeReviewIndex, revealed, dueWords]);
+
   const speakWord = (text) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -83,7 +114,7 @@ export default function ReviewSession({
 
   if (loading) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+      <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', maxWidth: '600px', margin: '0 auto' }}>
         <p style={{ color: 'var(--text-secondary)' }}>Loading spaced repetition queue...</p>
       </div>
     );
@@ -96,18 +127,18 @@ export default function ReviewSession({
     const progressPct = Math.round(((activeReviewIndex + 1) / total) * 100);
 
     return (
-      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '680px', margin: '0 auto', width: '100%' }}>
         {/* Top Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button className="btn-icon" onClick={() => setActiveReviewIndex(null)} title="Exit review">
+          <button className="btn-icon" onClick={() => setActiveReviewIndex(null)} title="Exit review (Esc)">
             <ArrowLeft size={18} />
           </button>
           
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-warning)' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-warning)', letterSpacing: '0.05em' }}>
             Review {activeReviewIndex + 1} of {total}
           </span>
 
-          <button className="btn-icon" onClick={() => onToggleFavorite(word.id)}>
+          <button className="btn-icon" onClick={() => onToggleFavorite(word.id)} title="Favorite (F)">
             <Star 
               size={18} 
               fill={word.progress?.isFavorite ? 'var(--accent-gold)' : 'none'} 
@@ -122,84 +153,95 @@ export default function ReviewSession({
         </div>
 
         {/* Review Card */}
-        <div className="word-learning-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
-            <h2 className="word-hero-title">{word.word}</h2>
-            <button className="btn-icon" onClick={() => speakWord(word.word)} style={{ borderRadius: '50%' }}>
-              <Volume2 size={18} />
-            </button>
+        <div className="word-learning-card" style={{ minHeight: '340px', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
+              <h2 className="word-hero-title">{word.word}</h2>
+              <button className="btn-icon" onClick={() => speakWord(word.word)} style={{ borderRadius: '50%', width: '2.5rem', height: '2.5rem' }}>
+                <Volume2 size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
+              <span className="badge badge-learning">
+                Interval: {word.progress?.interval || 1}d • {word.progress?.reviewCount || 0} reviews
+              </span>
+            </div>
           </div>
 
-          <span className="badge badge-learning" style={{ marginTop: '0.5rem' }}>
-            Interval: {word.progress?.interval || 1}d • {word.progress?.reviewCount || 0} reviews
-          </span>
-
           {!revealed ? (
-            <div style={{ margin: '2.5rem 0', width: '100%', maxWidth: '340px' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1rem' }}>
+            <div style={{ margin: '3rem 0', width: '100%', maxWidth: '380px' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '1rem', marginBottom: '1.5rem' }}>
                 Can you recall this word's meaning and usage?
               </p>
               <button 
-                className="btn btn-secondary" 
+                className="btn btn-primary" 
                 onClick={() => setRevealed(true)}
-                style={{ width: '100%', padding: '0.85rem' }}
+                style={{ width: '100%', padding: '0.95rem', minHeight: '52px', fontSize: '1.05rem' }}
               >
-                <Eye size={16} />
-                <span>Show Meaning</span>
+                <Eye size={18} />
+                <span>Reveal Meaning</span>
+                <span className="kbd-hint">Space</span>
               </button>
             </div>
           ) : (
-            <div className="word-meaning-box animate-fade-in">
-              <div style={{ marginBottom: '1rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)' }}>
+            <div className="word-meaning-box animate-fade-in" style={{ width: '100%', margin: '1.5rem 0' }}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.08em' }}>
                   Simple Meaning
                 </span>
-                <p style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+                <p style={{ fontSize: '1.15rem', color: 'var(--text-primary)', marginTop: '0.25rem', lineHeight: '1.5', fontWeight: 500 }}>
                   {word.meaning}
                 </p>
               </div>
 
               {word.example && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
                     Example Sentence
                   </span>
-                  <p className="example-quote">"{word.example}"</p>
+                  <p className="example-quote" style={{ margin: '0.35rem 0 0 0' }}>"{word.example}"</p>
                 </div>
               )}
 
               {word.howToUse && (
                 <div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)' }}>
-                    How to Use It
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.08em' }}>
+                    Workplace Context
                   </span>
                   <div className="usage-note">{word.howToUse}</div>
                 </div>
               )}
             </div>
           )}
+
+          {/* Action Buttons */}
+          {revealed && (
+            <div className="review-action-btns" style={{ width: '100%', display: 'flex', gap: '0.75rem' }}>
+              <button 
+                className="btn btn-danger"
+                onClick={() => handleReviewOutcome('need_practice')}
+                style={{ flex: 1, minHeight: '52px', fontSize: '1rem' }}
+                title="Mark for repetition tomorrow (Key: 1)"
+              >
+                <RotateCcw size={18} />
+                <span>Need Practice</span>
+                <span className="kbd-hint">1</span>
+              </button>
+
+              <button 
+                className="btn btn-success"
+                onClick={() => handleReviewOutcome('known')}
+                style={{ flex: 1, minHeight: '52px', fontSize: '1rem' }}
+                title="Mastered, expand interval (Key: 2)"
+              >
+                <Check size={18} />
+                <span>I Know This</span>
+                <span className="kbd-hint">2</span>
+              </button>
+            </div>
+          )}
         </div>
-
-        {/* Action Buttons */}
-        {revealed && (
-          <div className="animate-fade-in review-action-btns">
-            <button 
-              className="btn btn-danger"
-              onClick={() => handleReviewOutcome('need_practice')}
-            >
-              <RotateCcw size={16} />
-              <span>Need Practice</span>
-            </button>
-
-            <button 
-              className="btn btn-success"
-              onClick={() => handleReviewOutcome('known')}
-            >
-              <Check size={16} />
-              <span>I Know This</span>
-            </button>
-          </div>
-        )}
       </div>
     );
   }
@@ -207,40 +249,40 @@ export default function ReviewSession({
   // Review Completed Summary
   if (activeReviewIndex === 'complete') {
     return (
-      <div className="animate-fade-in card card-elevated" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+      <div className="animate-fade-in card card-elevated" style={{ textAlign: 'center', padding: '3.5rem 2rem', maxWidth: '600px', margin: '0 auto' }}>
         <div style={{
-          width: '4rem',
-          height: '4rem',
+          width: '4.5rem',
+          height: '4.5rem',
           borderRadius: '50%',
           background: 'var(--accent-success-subtle)',
           color: 'var(--accent-success)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          margin: '0 auto 1.25rem auto'
+          margin: '0 auto 1.5rem auto'
         }}>
           <Sparkles size={32} />
         </div>
 
-        <h2 style={{ fontSize: '1.85rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+        <h2 style={{ fontSize: '1.85rem', color: 'var(--text-primary)', marginBottom: '0.5rem', fontWeight: 800 }}>
           Spaced Review Complete! 🎉
         </h2>
-        <p style={{ color: 'var(--text-secondary)', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
+        <p style={{ color: 'var(--text-secondary)', maxWidth: '420px', margin: '0 auto 1.5rem auto', fontSize: '0.95rem' }}>
           You've refreshed your memory. Intervals have been adjusted automatically based on your recall.
         </p>
 
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '2rem' }}>
-          <span className="badge badge-mastered" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '2rem', flexWrap: 'wrap' }}>
+          <span className="badge badge-mastered" style={{ padding: '0.45rem 0.9rem', fontSize: '0.9rem' }}>
             <CheckCircle2 size={16} /> {reviewedStats.known} Remembered
           </span>
           {reviewedStats.practice > 0 && (
-            <span className="badge badge-practice" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>
+            <span className="badge badge-practice" style={{ padding: '0.45rem 0.9rem', fontSize: '0.9rem' }}>
               <RotateCcw size={16} /> {reviewedStats.practice} Scheduled Tomorrow
             </span>
           )}
         </div>
 
-        <button className="btn btn-primary" onClick={() => setActiveReviewIndex(null)}>
+        <button className="btn btn-primary" onClick={() => setActiveReviewIndex(null)} style={{ padding: '0.85rem 1.75rem' }}>
           Back to Review Queue
         </button>
       </div>
@@ -249,20 +291,20 @@ export default function ReviewSession({
 
   // Review Queue List Mode
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', color: 'var(--text-primary)' }}>
+          <h1 style={{ fontSize: '1.85rem', color: 'var(--text-primary)', margin: 0, fontWeight: 700 }}>
             Spaced Review
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '0.2rem' }}>
             Strengthen long-term memory with scientifically spaced intervals (1d → 3d → 7d → 14d → 30d).
           </p>
         </div>
 
         {dueWords.length > 0 && (
-          <button className="btn btn-primary" onClick={handleStartReview} style={{ padding: '0.75rem 1.5rem' }}>
+          <button className="btn btn-primary" onClick={handleStartReview} style={{ padding: '0.75rem 1.5rem', minHeight: '44px' }}>
             <RotateCcw size={17} />
             <span>Start Review ({dueWords.length})</span>
           </button>
@@ -298,7 +340,7 @@ export default function ReviewSession({
             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
               {dueWords.length} {dueWords.length === 1 ? 'Word' : 'Words'} Due for Recall
             </span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Prioritizing words needing practice
             </span>
           </div>

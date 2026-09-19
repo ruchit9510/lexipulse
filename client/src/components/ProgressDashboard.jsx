@@ -9,13 +9,20 @@ import {
   BookOpen, 
   RotateCcw,
   Check,
-  ChevronRight
+  ChevronRight,
+  Sparkles,
+  Calendar
 } from 'lucide-react';
+import VocabularyProfile from './VocabularyProfile';
 
 export default function ProgressDashboard({ 
   stats, 
   words, 
-  onSelectWord 
+  onSelectWord,
+  onOpenWeeklyReview,
+  onOpenAchievements,
+  onStartQuickPractice,
+  onOpenConfusingWords
 }) {
   const streak = stats?.streak || {};
   const currentStreak = streak.currentStreak || 0;
@@ -49,15 +56,47 @@ export default function ProgressDashboard({
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Title */}
-      <div>
-        <h1 style={{ fontSize: '1.85rem', color: 'var(--text-primary)' }}>
-          Learning Progress
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-          Track retention, study consistency, and mastery milestones.
-        </p>
+      {/* Title & Quick Actions */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.85rem', color: 'var(--text-primary)' }}>
+            Learning Progress & Analytics
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+            Track retention, cognitive dimensions, study consistency, and mastery milestones.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {onOpenWeeklyReview && (
+            <button
+              className="btn btn-secondary"
+              onClick={onOpenWeeklyReview}
+              style={{ minHeight: '40px' }}
+            >
+              <Calendar size={16} style={{ color: 'var(--accent-primary)' }} />
+              <span>Weekly Review</span>
+            </button>
+          )}
+
+          {onOpenAchievements && (
+            <button
+              className="btn btn-secondary"
+              onClick={onOpenAchievements}
+              style={{ minHeight: '40px' }}
+            >
+              <Award size={16} style={{ color: 'var(--accent-warning)' }} />
+              <span>Achievements & XP</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* 6-Dimension Personal Weakness Profile */}
+      <VocabularyProfile 
+        onStartQuickPractice={onStartQuickPractice}
+        onOpenConfusingWords={onOpenConfusingWords}
+      />
 
       {/* Top Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
