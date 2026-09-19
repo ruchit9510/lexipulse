@@ -19,17 +19,20 @@ export default function SyncStatusPill({ status, onSync, syncing }) {
       {syncing ? (
         <>
           <RefreshCw size={12} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
-          <span>Syncing Drive...</span>
+          <span className="sync-text-desktop">Syncing Drive...</span>
+          <span className="sync-text-mobile">Syncing...</span>
         </>
       ) : isDrive ? (
         <>
           <CheckCircle2 size={12} style={{ color: 'var(--accent-success)' }} />
-          <span>Drive Synced {lastSynced}</span>
+          <span className="sync-text-desktop">Drive Synced {lastSynced}</span>
+          <span className="sync-text-mobile">Synced</span>
         </>
       ) : (
         <>
           <Cloud size={12} style={{ color: 'var(--accent-primary)' }} />
-          <span>Connect Drive</span>
+          <span className="sync-text-desktop">Connect Drive</span>
+          <span className="sync-text-mobile">Drive</span>
         </>
       )}
     </button>

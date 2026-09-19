@@ -99,7 +99,7 @@ export default function Navigation({
           <div className="nav-actions">
             {streak > 0 && (
               <div 
-                className="badge badge-streak" 
+                className="badge badge-streak nav-streak-badge" 
                 title={`${streak} day daily learning streak`}
                 style={{ cursor: 'pointer' }}
                 onClick={() => setCurrentTab('progress')}

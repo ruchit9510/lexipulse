@@ -527,6 +527,7 @@ export default function App() {
                   setActiveFlow('quiz');
                 }}
                 onGoToReview={() => setCurrentTab('review')}
+                onGoToProgress={() => setCurrentTab('progress')}
                 onSelectWord={w => setSelectedWord(w)}
                 onStartQuickPractice={() => setIsQuickPracticeOpen(true)}
                 onOpenConfusingWords={() => setIsConfusingWordsOpen(true)}

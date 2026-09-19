@@ -27,10 +27,12 @@ export default function ProgressDashboard({
   const streak = stats?.streak || {};
   const currentStreak = streak.currentStreak || 0;
   const maxStreak = streak.maxStreak || 0;
-  const completedDates = streak.completedDates || [];
+  const completedDates = Array.isArray(streak.completedDates) ? streak.completedDates : [];
   const dailySessions = stats?.dailySessions || {};
 
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState('2026-09-15');
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
 
   // Days in September 2026 (starts on Tuesday Sept 1, 30 days)
   const daysInSep2026 = Array.from({ length: 30 }, (_, i) => {
@@ -59,10 +61,10 @@ export default function ProgressDashboard({
       {/* Title & Quick Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', color: 'var(--text-primary)' }}>
+          <h1 style={{ fontSize: 'clamp(1.4rem, 4vw, 1.85rem)', color: 'var(--text-primary)', margin: 0 }}>
             Learning Progress & Analytics
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
             Track retention, cognitive dimensions, study consistency, and mastery milestones.
           </p>
         </div>
@@ -72,9 +74,9 @@ export default function ProgressDashboard({
             <button
               className="btn btn-secondary"
               onClick={onOpenWeeklyReview}
-              style={{ minHeight: '40px' }}
+              style={{ minHeight: '38px', padding: '0.45rem 0.85rem', fontSize: '0.85rem' }}
             >
-              <Calendar size={16} style={{ color: 'var(--accent-primary)' }} />
+              <Calendar size={15} style={{ color: 'var(--accent-primary)' }} />
               <span>Weekly Review</span>
             </button>
           )}
@@ -83,9 +85,9 @@ export default function ProgressDashboard({
             <button
               className="btn btn-secondary"
               onClick={onOpenAchievements}
-              style={{ minHeight: '40px' }}
+              style={{ minHeight: '38px', padding: '0.45rem 0.85rem', fontSize: '0.85rem' }}
             >
-              <Award size={16} style={{ color: 'var(--accent-warning)' }} />
+              <Award size={15} style={{ color: 'var(--accent-warning)' }} />
               <span>Achievements & XP</span>
             </button>
           )}
@@ -99,41 +101,41 @@ export default function ProgressDashboard({
       />
 
       {/* Top Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '0.75rem' }}>
         {/* Total Words */}
-        <div className="card">
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Vault</span>
-          <div style={{ fontSize: '2rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+        <div className="card" style={{ padding: '1rem' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Vault</span>
+          <div style={{ fontSize: '1.75rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
             {stats?.totalWords || 0}
           </div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Synchronized words</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Synchronized</span>
         </div>
 
         {/* Mastered */}
-        <div className="card">
-          <span style={{ fontSize: '0.8rem', color: 'var(--accent-success)', fontWeight: 600 }}>Mastered 🟢</span>
-          <div style={{ fontSize: '2rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--accent-success)', marginTop: '0.2rem' }}>
+        <div className="card" style={{ padding: '1rem' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--accent-success)', fontWeight: 600 }}>Mastered 🟢</span>
+          <div style={{ fontSize: '1.75rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--accent-success)', marginTop: '0.2rem' }}>
             {stats?.masteredCount || 0}
           </div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{stats?.masteryPercentage || 0}% vault mastery</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{stats?.masteryPercentage || 0}% mastery</span>
         </div>
 
         {/* Learning */}
-        <div className="card">
-          <span style={{ fontSize: '0.8rem', color: 'var(--accent-warning)', fontWeight: 600 }}>Practicing 🟡</span>
-          <div style={{ fontSize: '2rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--accent-warning)', marginTop: '0.2rem' }}>
+        <div className="card" style={{ padding: '1rem' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--accent-warning)', fontWeight: 600 }}>Practicing 🟡</span>
+          <div style={{ fontSize: '1.75rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--accent-warning)', marginTop: '0.2rem' }}>
             {stats?.learningCount || 0}
           </div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Active repetition ladder</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>In active SRS</span>
         </div>
 
         {/* Current Streak */}
-        <div className="card">
-          <span style={{ fontSize: '0.8rem', color: 'var(--accent-flame)', fontWeight: 600 }}>Daily Streak 🔥</span>
-          <div style={{ fontSize: '2rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--accent-flame)', marginTop: '0.2rem' }}>
-            {currentStreak} <span style={{ fontSize: '1rem', fontWeight: 500 }}>days</span>
+        <div className="card" style={{ padding: '1rem' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--accent-flame)', fontWeight: 600 }}>Daily Streak 🔥</span>
+          <div style={{ fontSize: '1.75rem', fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--accent-flame)', marginTop: '0.2rem' }}>
+            {currentStreak} <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>days</span>
           </div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Best: {maxStreak} days</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Best: {maxStreak}d</span>
         </div>
       </div>
 
@@ -234,7 +236,7 @@ export default function ProgressDashboard({
                 <button
                   key={w.id}
                   className="card"
-                  onClick={() => onSelectWord(w)}
+                  onClick={() => onSelectWord && onSelectWord(w)}
                   style={{
                     padding: '0.65rem 1rem',
                     cursor: 'pointer',
@@ -244,7 +246,9 @@ export default function ProgressDashboard({
                   }}
                 >
                   <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{w.word}</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>— {w.meaning.slice(0, 30)}...</span>
+                  {w.meaning && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>— {w.meaning.slice(0, 30)}...</span>
+                  )}
                 </button>
               ))}
             </div>

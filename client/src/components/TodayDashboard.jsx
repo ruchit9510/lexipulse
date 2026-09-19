@@ -22,6 +22,7 @@ export default function TodayDashboard({
   onStartLearning, 
   onStartQuiz, 
   onGoToReview,
+  onGoToProgress,
   onSelectWord,
   onStartQuickPractice,
   onOpenConfusingWords
@@ -52,15 +53,15 @@ export default function TodayDashboard({
   const isDriveConnected = Boolean(syncStatus?.driveConnected);
 
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* LEVEL 4 (Quiet Header): Greeting, Date & Streak */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.75rem', color: 'var(--text-primary)', margin: 0, fontWeight: 700 }}>
+          <h1 style={{ fontSize: 'clamp(1.4rem, 4vw, 1.85rem)', color: 'var(--text-primary)', margin: 0, fontWeight: 700 }}>
             {greeting}
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Clock size={14} style={{ color: 'var(--text-muted)' }} />
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Clock size={13} style={{ color: 'var(--text-muted)' }} />
             {formattedDate}
           </p>
         </div>
@@ -68,15 +69,18 @@ export default function TodayDashboard({
         {streakCount > 0 && (
           <div 
             className="badge badge-streak"
+            onClick={onGoToProgress}
             style={{ 
-              padding: '0.4rem 0.85rem', 
-              fontSize: '0.85rem',
+              padding: '0.35rem 0.75rem', 
+              fontSize: '0.8rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.4rem'
+              gap: '0.35rem',
+              cursor: onGoToProgress ? 'pointer' : 'default'
             }}
+            title="View learning progress, consistency & streak history"
           >
-            <Flame size={16} style={{ color: 'var(--accent-flame)' }} />
+            <Flame size={15} style={{ color: 'var(--accent-flame)' }} />
             <span>{streakCount} Day Streak</span>
           </div>
         )}
