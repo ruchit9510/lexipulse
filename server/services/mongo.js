@@ -873,8 +873,16 @@ async function resetVocabularyDataInMongo() {
   }
 }
 
+async function disconnectMongo() {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+    isMongoConnected = false;
+  }
+}
+
 module.exports = {
   connectMongo,
+  disconnectMongo,
   isConnected,
   getStatus,
   verifyUser,

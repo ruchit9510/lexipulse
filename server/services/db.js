@@ -87,9 +87,18 @@ function loadDb() {
 function saveDb() {
   if (!dbCache) return;
   ensureDbDir();
-  const tempPath = `${DB_PATH}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(dbCache, null, 2), 'utf-8');
-  fs.renameSync(tempPath, DB_PATH);
+  const tempPath = `${DB_PATH}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(dbCache, null, 2), 'utf-8');
+    fs.renameSync(tempPath, DB_PATH);
+  } catch (err) {
+    try {
+      fs.writeFileSync(DB_PATH, JSON.stringify(dbCache, null, 2), 'utf-8');
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch (fallbackErr) {
+      console.error('Error saving DB file:', fallbackErr.message);
+    }
+  }
 }
 
 /**
@@ -124,8 +133,10 @@ async function initMongoDb() {
   }
 }
 
-// Start connection in background
-initMongoDb();
+// Start connection in background if not in test
+if (process.env.NODE_ENV !== 'test') {
+  initMongoDb();
+}
 
 /**
  * Upsert vocabulary records without wiping learning progress
@@ -806,6 +817,24 @@ function updateWordMeaning(wordId, meaning) {
   return null;
 }
 
+/**
+ * Update example sentence for an existing vocabulary item and persist
+ */
+function updateWordExample(wordId, example) {
+  if (!wordId || !example) return null;
+  const db = loadDb();
+  if (db.vocabulary[wordId]) {
+    db.vocabulary[wordId].example = example;
+    db.vocabulary[wordId].lastSyncedAt = new Date().toISOString();
+    saveDb();
+
+    // Persist to MongoDB
+    mongo.persistVocabulary(db.vocabulary[wordId]);
+    return db.vocabulary[wordId];
+  }
+  return null;
+}
+
 module.exports = {
   loadDb,
   saveDb,
@@ -835,6 +864,7 @@ module.exports = {
   saveWeeklyReport,
   resetVocabularyData,
   updateWordMeaning,
+  updateWordExample,
   verifyUser: mongo.verifyUser,
   verifySessionToken: mongo.verifySessionToken,
   getMongoStatus: mongo.getStatus

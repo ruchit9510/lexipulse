@@ -224,9 +224,65 @@ Return ONLY a valid JSON object matching this exact schema:
   }
 }
 
+/**
+ * 5. AI Generate Example Sentence
+ * Generates a fresh, clear, and distinct example sentence for a vocabulary word.
+ * Avoids sentences in previousSentences so user gets a different sentence on every regenerate.
+ */
+async function generateExampleSentence({ word, meaning, previousSentences = [], contexts = [] }) {
+  if (!word || !word.trim()) return '';
+
+  const validContexts = (contexts || []).filter(c => c && c.toLowerCase() !== 'software development' && c.toLowerCase() !== 'software');
+  const contextNote = validContexts.length > 0
+    ? `Tailor naturally to these learner themes if applicable: ${validContexts.join(', ')}.`
+    : '';
+
+  const prevList = (previousSentences || []).filter(Boolean);
+  const avoidNote = prevList.length > 0
+    ? `IMPORTANT: Do NOT repeat or closely mimic any of these previous sentences:\n${prevList.map(s => `- "${s}"`).join('\n')}\nProvide a completely different, fresh scenario and phrasing.`
+    : '';
+
+  const prompt = `You are an expert English lexicographer and ESL educator.
+Create a single, natural, and memorable example sentence demonstrating the word "${word}".
+Definition: "${meaning || ''}"
+${contextNote}
+${avoidNote}
+
+CRITICAL GUIDELINES:
+- The sentence must clearly illustrate the meaning of "${word}" in context so that a learner immediately understands how to use it.
+- Use everyday, authentic English (not overly academic, obscure, or technical jargon).
+- Vary the sentence structure and subject from previous examples.
+
+Return ONLY a valid JSON object matching this exact schema:
+{
+  "sentence": "<The single new example sentence using the target word>"
+}`;
+
+  try {
+    const raw = await callGemini(prompt, true);
+    const parsed = cleanAndParseJson(raw);
+    if (parsed?.sentence?.trim()) {
+      return parsed.sentence.trim();
+    }
+    throw new Error('No sentence returned in response');
+  } catch (err) {
+    console.error('[GeminiService] generateExampleSentence error:', err.message);
+    const fallbacks = [
+      `The team encountered a significant ${word.toLowerCase()} that forced them to rethink their entire strategy.`,
+      `Her clear explanation helped everyone understand why this ${word.toLowerCase()} mattered so much.`,
+      `In everyday conversations, adopting a ${word.toLowerCase()} mindset can prevent unnecessary misunderstandings.`,
+      `They decided to address the ${word.toLowerCase()} immediately before it caused further complications.`,
+      `It became clear that a more ${word.toLowerCase()} approach was needed to resolve the ongoing dilemma.`
+    ];
+    const unused = fallbacks.filter(f => !prevList.includes(f));
+    return unused.length > 0 ? unused[Math.floor(Math.random() * unused.length)] : fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  }
+}
+
 module.exports = {
   evaluateSentence,
   getWordInsights,
   getQuizHint,
-  generateWordMeaning
+  generateWordMeaning,
+  generateExampleSentence
 };

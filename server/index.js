@@ -45,35 +45,38 @@ async function autoFillMissingMeanings() {
   }
 }
 
-(async () => {
-  try {
-    const words = db.getAllWords();
-    const hasMissingMeanings = words.some(w => !w.meaning || !w.meaning.trim() || w.meaning === 'Meaning unavailable');
-    if (words.length === 0 || hasMissingMeanings) {
-      console.log(words.length === 0 ? 'Database empty, performing initial sync...' : 'Missing meanings detected, re-syncing from Drive...');
-      await driveService.syncWithDrive(true);
-      console.log('Initial sync completed. Loaded records:', db.getAllWords().length);
-    }
-    await autoFillMissingMeanings();
-  } catch (err) {
-    console.warn('Initial sync notice:', err.message);
-  }
-})();
-
-// Periodic background auto-fetch from Google Drive every 2 minutes
-setInterval(async () => {
-  try {
-    const settings = db.getRawSettings();
-    if (settings.driveConnected) {
-      const res = await driveService.syncWithDrive(false);
-      if (res && !res.unchanged) {
-        console.log(`[Auto-Fetch] Synced new/updated words from Google Drive: ${res.recordsSynced} records.`);
+if (process.env.NODE_ENV !== 'test') {
+  (async () => {
+    try {
+      const words = db.getAllWords();
+      const hasMissingMeanings = words.some(w => !w.meaning || !w.meaning.trim() || w.meaning === 'Meaning unavailable');
+      if (words.length === 0 || hasMissingMeanings) {
+        console.log(words.length === 0 ? 'Database empty, performing initial sync...' : 'Missing meanings detected, re-syncing from Drive...');
+        await driveService.syncWithDrive(true);
+        console.log('Initial sync completed. Loaded records:', db.getAllWords().length);
       }
+      await autoFillMissingMeanings();
+    } catch (err) {
+      console.warn('Initial sync notice:', err.message);
     }
-  } catch (err) {
-    // Silent fail for background sync
-  }
-}, 2 * 60 * 1000);
+  })();
+
+  // Periodic background auto-fetch from Google Drive every 2 minutes
+  const autoFetchTimer = setInterval(async () => {
+    try {
+      const settings = db.getRawSettings();
+      if (settings.driveConnected) {
+        const res = await driveService.syncWithDrive(false);
+        if (res && !res.unchanged) {
+          console.log(`[Auto-Fetch] Synced new/updated words from Google Drive: ${res.recordsSynced} records.`);
+        }
+      }
+    } catch (err) {
+      // Silent fail for background sync
+    }
+  }, 2 * 60 * 1000);
+  if (autoFetchTimer.unref) autoFetchTimer.unref();
+}
 
 
 // Helper to get local date string YYYY-MM-DD
@@ -494,6 +497,37 @@ app.post('/api/ai/generate-meaning', async (req, res) => {
 });
 
 /**
+ * AI Generate Example Sentence
+ * Generates a fresh, distinct example sentence for a word.
+ * Allows user to regenerate new sentences if they did not understand the previous one.
+ */
+app.post('/api/ai/generate-sentence', async (req, res) => {
+  try {
+    const { wordId, word, meaning, previousSentences } = req.body || {};
+    if (!word) {
+      return res.status(400).json({ success: false, message: 'Word is required' });
+    }
+
+    const prefs = db.getUserPreferences();
+    const sentence = await geminiService.generateExampleSentence({
+      word,
+      meaning,
+      previousSentences: Array.isArray(previousSentences) ? previousSentences : [],
+      contexts: prefs.selectedContexts || []
+    });
+
+    if (wordId && sentence) {
+      db.updateWordExample(wordId, sentence);
+    }
+
+    res.json({ success: true, sentence });
+  } catch (err) {
+    console.error('AI generate-sentence error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
  * ---------------- ADVANCED ANALYTICS & WEAKNESSES ----------------
  */
 
@@ -784,6 +818,10 @@ app.get('*', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend Server running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Backend Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;

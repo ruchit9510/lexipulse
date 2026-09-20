@@ -191,5 +191,7 @@ function generateDailyQuiz(targetWords, allPoolWords) {
 }
 
 module.exports = {
-  generateDailyQuiz
+  generateDailyQuiz,
+  createBlankSentence,
+  shuffle
 };

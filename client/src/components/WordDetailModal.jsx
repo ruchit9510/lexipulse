@@ -5,7 +5,8 @@ import {
   Star, 
   Calendar, 
   Check, 
-  RotateCcw, 
+  RotateCcw,
+  RotateCw,
   Save, 
   PenTool, 
   Award,
@@ -23,9 +24,7 @@ export default function WordDetailModal({
   onSaveSentence, 
   onRecordReview 
 }) {
-  if (!word) return null;
-
-  const [sentence, setSentence] = useState(word.progress?.userSentence || '');
+  const [sentence, setSentence] = useState(word?.progress?.userSentence || '');
   const [saved, setSaved] = useState(false);
   const [aiEval, setAiEval] = useState(null);
   const [evaluating, setEvaluating] = useState(false);
@@ -33,10 +32,14 @@ export default function WordDetailModal({
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [showAiInsights, setShowAiInsights] = useState(false);
 
+  const [currentExample, setCurrentExample] = useState(word?.example || '');
+  const [regeneratingSentence, setRegeneratingSentence] = useState(false);
+  const [previousSentences, setPreviousSentences] = useState(word?.example ? [word.example] : []);
+
   const [currentMeaning, setCurrentMeaning] = useState(
-    (word.meaning && word.meaning !== 'Meaning unavailable') 
+    (word?.meaning && word.meaning !== 'Meaning unavailable') 
       ? word.meaning 
-      : (word.simpleMeaning && word.simpleMeaning !== 'Meaning unavailable') 
+      : (word?.simpleMeaning && word.simpleMeaning !== 'Meaning unavailable') 
         ? word.simpleMeaning 
         : ''
   );
@@ -44,6 +47,7 @@ export default function WordDetailModal({
 
   // Auto-generate meaning with AI if unavailable
   React.useEffect(() => {
+    if (!word) return;
     const rawMeaning = word.meaning || word.simpleMeaning || '';
     if (!rawMeaning || rawMeaning === 'Meaning unavailable') {
       let isMounted = true;
@@ -83,6 +87,8 @@ export default function WordDetailModal({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  if (!word) return null;
 
   const speak = (text) => {
     if ('speechSynthesis' in window) {
@@ -126,6 +132,57 @@ export default function WordDetailModal({
     }
   };
 
+  const handleRegenerateSentence = async () => {
+    if (regeneratingSentence) return;
+    setRegeneratingSentence(true);
+    try {
+      const res = await fetch('/api/ai/generate-sentence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wordId: word.id,
+          word: word.word,
+          meaning: currentMeaning || word.meaning || word.simpleMeaning || '',
+          previousSentences
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.sentence) {
+        setCurrentExample(data.sentence);
+        word.example = data.sentence;
+        setPreviousSentences(prev => [...prev, data.sentence]);
+      }
+    } catch (e) {
+      console.error('Error regenerating sentence with AI:', e);
+    } finally {
+      setRegeneratingSentence(false);
+    }
+  };
+
+  const handleRegenerateInsights = async () => {
+    if (loadingInsights) return;
+    setLoadingInsights(true);
+    try {
+      const res = await fetch('/api/ai/word-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          word: word.word,
+          meaning: currentMeaning || word.meaning || word.simpleMeaning || '',
+          example: currentExample || word.example
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.insights) {
+        setInsights(data.insights);
+      }
+    } catch (e) {
+      console.error('Error regenerating AI insights:', e);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
   const handleToggleInsights = async () => {
     if (showAiInsights) {
       setShowAiInsights(false);
@@ -141,7 +198,7 @@ export default function WordDetailModal({
           body: JSON.stringify({
             word: word.word,
             meaning: currentMeaning || word.meaning || word.simpleMeaning || '',
-            example: word.example
+            example: currentExample || word.example
           })
         });
         const data = await res.json();
@@ -238,17 +295,49 @@ export default function WordDetailModal({
             )}
           </div>
 
-          {/* Example Sentence */}
-          {word.example && (
-            <div>
+          {/* Example Sentence with Regenerate Icon */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
                 Example Sentence
               </span>
-              <p className="example-quote">
-                "{word.example}"
-              </p>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={handleRegenerateSentence}
+                disabled={regeneratingSentence}
+                title="Generate a different sentence (click if you didn't understand this one)"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.25rem 0.6rem',
+                  fontSize: '0.75rem',
+                  color: 'var(--accent-primary)',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: regeneratingSentence ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <RotateCw size={13} className={regeneratingSentence ? 'animate-spin' : ''} />
+                <span>{regeneratingSentence ? 'Generating...' : 'Regenerate'}</span>
+              </button>
             </div>
-          )}
+            {regeneratingSentence && !currentExample ? (
+              <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                Generating new sentence with Gemini AI...
+              </p>
+            ) : currentExample ? (
+              <p className="example-quote">
+                "{currentExample}"
+              </p>
+            ) : (
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                No example sentence yet. Click "Regenerate" to generate one with AI!
+              </p>
+            )}
+          </div>
 
           {/* How to Use It */}
           {word.howToUse && (
@@ -276,14 +365,37 @@ export default function WordDetailModal({
                   Gemini AI Memory Hook & Context
                 </span>
               </div>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleToggleInsights}
-                style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
-              >
-                {loadingInsights ? 'Generating...' : showAiInsights ? 'Hide' : '✨ Generate AI Insights'}
-              </button>
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                {showAiInsights && (
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={handleRegenerateInsights}
+                    disabled={loadingInsights}
+                    title="Regenerate AI Insights & Dialogue"
+                    style={{
+                      padding: '0.35rem 0.55rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    <RotateCw size={13} className={loadingInsights ? 'animate-spin' : ''} />
+                    <span>Regenerate</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleToggleInsights}
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+                >
+                  {loadingInsights ? 'Generating...' : showAiInsights ? 'Hide' : '✨ Generate AI Insights'}
+                </button>
+              </div>
             </div>
 
             {showAiInsights && insights && (
