@@ -140,9 +140,13 @@ function upsertVocabulary(records) {
   records.forEach(rec => {
     if (!rec.id || !rec.word) return;
 
+    const meaningVal = rec.meaning || rec.simpleMeaning || 'Meaning unavailable';
+
     if (!db.vocabulary[rec.id]) {
       db.vocabulary[rec.id] = {
         ...rec,
+        meaning: meaningVal,
+        simpleMeaning: meaningVal,
         firstSeenAt: now,
         lastSyncedAt: now
       };
@@ -151,6 +155,8 @@ function upsertVocabulary(records) {
       db.vocabulary[rec.id] = {
         ...db.vocabulary[rec.id],
         ...rec,
+        meaning: meaningVal,
+        simpleMeaning: meaningVal,
         lastSyncedAt: now
       };
       updated++;
@@ -195,8 +201,11 @@ function getAllWords() {
   const db = loadDb();
   return Object.values(db.vocabulary).map(v => {
     const progress = db.learningProgress[v.id] || {};
+    const meaningVal = v.meaning || v.simpleMeaning || '';
     return {
       ...v,
+      meaning: meaningVal,
+      simpleMeaning: meaningVal,
       progress
     };
   });
@@ -763,6 +772,25 @@ async function resetVocabularyData() {
   return { success: true, message: 'All vocabulary data and learning progress have been reset.' };
 }
 
+/**
+ * Update meaning for an existing vocabulary item and persist
+ */
+function updateWordMeaning(wordId, meaning) {
+  if (!wordId || !meaning) return null;
+  const db = loadDb();
+  if (db.vocabulary[wordId]) {
+    db.vocabulary[wordId].meaning = meaning;
+    db.vocabulary[wordId].simpleMeaning = meaning;
+    db.vocabulary[wordId].lastSyncedAt = new Date().toISOString();
+    saveDb();
+
+    // Persist to MongoDB
+    mongo.persistVocabulary(db.vocabulary[wordId]);
+    return db.vocabulary[wordId];
+  }
+  return null;
+}
+
 module.exports = {
   loadDb,
   saveDb,
@@ -791,6 +819,7 @@ module.exports = {
   getWeeklyReports,
   saveWeeklyReport,
   resetVocabularyData,
+  updateWordMeaning,
   verifyUser: mongo.verifyUser,
   verifySessionToken: mongo.verifySessionToken,
   getMongoStatus: mongo.getStatus

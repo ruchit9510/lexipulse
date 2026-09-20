@@ -35,7 +35,7 @@ export default function VocabularyLibrary({
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch = !q || 
         w.word.toLowerCase().includes(q) || 
-        w.meaning.toLowerCase().includes(q);
+        (w.meaning || w.simpleMeaning || '').toLowerCase().includes(q);
 
       if (!matchesSearch) return false;
 
@@ -249,7 +249,7 @@ export default function VocabularyLibrary({
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden'
                   }}>
-                    {w.meaning}
+                    {w.meaning || w.simpleMeaning}
                   </p>
                 </div>
 

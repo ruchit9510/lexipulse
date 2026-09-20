@@ -22,6 +22,41 @@ export default function ReviewSession({
   const [activeReviewIndex, setActiveReviewIndex] = useState(null); // null means list view, number means active review
   const [revealed, setRevealed] = useState(false);
   const [reviewedStats, setReviewedStats] = useState({ known: 0, practice: 0 });
+  const [generatingMeaning, setGeneratingMeaning] = useState(false);
+
+  // Auto-generate meaning with AI if unavailable
+  useEffect(() => {
+    if (typeof activeReviewIndex !== 'number') return;
+    const word = dueWords[activeReviewIndex];
+    if (!word) return;
+    const rawMeaning = word.meaning || word.simpleMeaning || '';
+    if (!rawMeaning || rawMeaning === 'Meaning unavailable') {
+      let isMounted = true;
+      setGeneratingMeaning(true);
+      fetch('/api/ai/generate-meaning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wordId: word.id,
+          word: word.word,
+          example: word.example,
+          howToUse: word.howToUse
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (isMounted && data.success && data.meaning) {
+            word.meaning = data.meaning;
+            word.simpleMeaning = data.meaning;
+          }
+        })
+        .catch(err => console.error(err))
+        .finally(() => {
+          if (isMounted) setGeneratingMeaning(false);
+        });
+      return () => { isMounted = false; };
+    }
+  }, [activeReviewIndex, dueWords]);
 
   useEffect(() => {
     fetchDueWords();
@@ -187,12 +222,25 @@ export default function ReviewSession({
           ) : (
             <div className="word-meaning-box animate-fade-in" style={{ width: '100%', margin: '1.5rem 0' }}>
               <div style={{ marginBottom: '1.25rem' }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.08em' }}>
-                  Simple Meaning
-                </span>
-                <p style={{ fontSize: '1.15rem', color: 'var(--text-primary)', marginTop: '0.25rem', lineHeight: '1.5', fontWeight: 500 }}>
-                  {word.meaning}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.08em' }}>
+                    Simple Meaning
+                  </span>
+                  {generatingMeaning && (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Sparkles size={12} className="animate-spin" /> AI Generating...
+                    </span>
+                  )}
+                </div>
+                {generatingMeaning && (!word.meaning || word.meaning === 'Meaning unavailable') ? (
+                  <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                    Generating definition with Gemini AI...
+                  </p>
+                ) : (
+                  <p style={{ fontSize: '1.15rem', color: 'var(--text-primary)', marginTop: '0.25rem', lineHeight: '1.5', fontWeight: 500 }}>
+                    {word.meaning || word.simpleMeaning || 'Meaning unavailable'}
+                  </p>
+                )}
               </div>
 
               {word.example && (
@@ -378,7 +426,7 @@ export default function ReviewSession({
                     overflow: 'hidden',
                     lineHeight: '1.4'
                   }}>
-                    {w.meaning}
+                    {w.meaning || w.simpleMeaning}
                   </p>
 
                   <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>

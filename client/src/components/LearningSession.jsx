@@ -32,6 +32,41 @@ export default function LearningSession({
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [aiEval, setAiEval] = useState(null);
   const [evaluating, setEvaluating] = useState(false);
+  const [generatingMeaning, setGeneratingMeaning] = useState(false);
+
+  const currentWord = words && words.length > 0 ? words[currentIndex] : null;
+
+  // Auto-generate meaning with AI if unavailable
+  useEffect(() => {
+    if (!currentWord) return;
+    const rawMeaning = currentWord.meaning || currentWord.simpleMeaning || '';
+    if (!rawMeaning || rawMeaning === 'Meaning unavailable') {
+      let isMounted = true;
+      setGeneratingMeaning(true);
+      fetch('/api/ai/generate-meaning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wordId: currentWord.id,
+          word: currentWord.word,
+          example: currentWord.example,
+          howToUse: currentWord.howToUse
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (isMounted && data.success && data.meaning) {
+            currentWord.meaning = data.meaning;
+            currentWord.simpleMeaning = data.meaning;
+          }
+        })
+        .catch(err => console.error(err))
+        .finally(() => {
+          if (isMounted) setGeneratingMeaning(false);
+        });
+      return () => { isMounted = false; };
+    }
+  }, [currentWord]);
 
   if (!words || words.length === 0) {
     return (
@@ -44,7 +79,6 @@ export default function LearningSession({
     );
   }
 
-  const currentWord = words[currentIndex];
   const total = words.length;
   const progressPercent = Math.round(((currentIndex + 1) / total) * 100);
 
@@ -143,7 +177,7 @@ export default function LearningSession({
         body: JSON.stringify({
           word: currentWord.word,
           sentence: text,
-          meaning: currentWord.meaning
+          meaning: currentWord.meaning || currentWord.simpleMeaning || ''
         })
       });
       const data = await res.json();
@@ -313,12 +347,25 @@ export default function LearningSession({
           <div className="word-meaning-box animate-fade-in" style={{ width: '100%', margin: '1.5rem 0' }}>
             {/* Simple Meaning */}
             <div style={{ marginBottom: '1.25rem' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.08em' }}>
-                Simple Meaning
-              </span>
-              <p style={{ fontSize: '1.15rem', color: 'var(--text-primary)', marginTop: '0.25rem', lineHeight: '1.5', fontWeight: 500 }}>
-                {currentWord.meaning}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.08em' }}>
+                  Simple Meaning
+                </span>
+                {generatingMeaning && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Sparkles size={12} className="animate-spin" /> AI Generating...
+                  </span>
+                )}
+              </div>
+              {generatingMeaning && (!currentWord.meaning || currentWord.meaning === 'Meaning unavailable') ? (
+                <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                  Generating definition with Gemini AI...
+                </p>
+              ) : (
+                <p style={{ fontSize: '1.15rem', color: 'var(--text-primary)', marginTop: '0.25rem', lineHeight: '1.5', fontWeight: 500 }}>
+                  {currentWord.meaning || currentWord.simpleMeaning || 'Meaning unavailable'}
+                </p>
+              )}
             </div>
 
             {/* Example Sentence */}

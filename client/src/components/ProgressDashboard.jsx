@@ -246,8 +246,8 @@ export default function ProgressDashboard({
                   }}
                 >
                   <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{w.word}</span>
-                  {w.meaning && (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>— {w.meaning.slice(0, 30)}...</span>
+                  {(w.meaning || w.simpleMeaning) && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>— {(w.meaning || w.simpleMeaning).slice(0, 30)}...</span>
                   )}
                 </button>
               ))}

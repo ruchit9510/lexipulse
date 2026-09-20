@@ -181,8 +181,41 @@ Return plain text (no markdown formatting).`;
   }
 }
 
+/**
+ * 4. AI Generate Word Meaning
+ * Generates an accurate, clear, and simple meaning for a vocabulary word when unavailable.
+ */
+async function generateWordMeaning({ word, example = '', howToUse = '', contexts = [] }) {
+  if (!word || !word.trim()) return 'Meaning unavailable';
+
+  const contextInfo = [
+    example ? `Example sentence: "${example}"` : '',
+    howToUse ? `Usage note: "${howToUse}"` : '',
+    contexts.length > 0 ? `Preferred communication domains: ${contexts.join(', ')}` : ''
+  ].filter(Boolean).join('\n');
+
+  const prompt = `You are an expert English lexicographer and vocabulary educator.
+Define the English vocabulary word: "${word}".
+${contextInfo ? `${contextInfo}\n` : ''}
+Provide a clear, simple, and concise definition (1-2 sentences) that is easy to understand for learners.
+Return ONLY a valid JSON object matching this exact schema:
+{
+  "meaning": "<Clear, concise, and simple definition of the word>"
+}`;
+
+  try {
+    const raw = await callGemini(prompt, true);
+    const parsed = cleanAndParseJson(raw);
+    return parsed?.meaning?.trim() || `The definition or concept of ${word}.`;
+  } catch (err) {
+    console.error('[GeminiService] generateWordMeaning error:', err.message);
+    return `A common English expression or word used to describe ${word.toLowerCase()}.`;
+  }
+}
+
 module.exports = {
   evaluateSentence,
   getWordInsights,
-  getQuizHint
+  getQuizHint,
+  generateWordMeaning
 };

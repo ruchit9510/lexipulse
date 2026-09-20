@@ -94,13 +94,14 @@ const weeklyReportSchema = new mongoose.Schema({
 const vocabularySchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   word: { type: String, required: true },
+  meaning: String,
   simpleMeaning: String,
   example: String,
   howToUse: String,
   date: String,
   firstSeenAt: String,
   lastSyncedAt: String
-});
+}, { strict: false });
 
 const learningProgressSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
@@ -474,7 +475,14 @@ async function loadAllFromMongo() {
     const settingsDoc = await Settings.findOne({ singletonId: 'app_settings' }).lean();
 
     const vocabulary = {};
-    vocabList.forEach(v => { vocabulary[v.id] = v; });
+    vocabList.forEach(v => {
+      const meaningVal = v.meaning || v.simpleMeaning || '';
+      vocabulary[v.id] = {
+        ...v,
+        meaning: meaningVal,
+        simpleMeaning: meaningVal
+      };
+    });
 
     const learningProgress = {};
     progressList.forEach(p => { learningProgress[p.id] = p; });
@@ -519,9 +527,10 @@ async function migrateToMongoIfEmpty(localDb) {
 
     // Bulk insert vocabulary
     for (const v of vocabEntries) {
+      const meaningVal = v.meaning || v.simpleMeaning || '';
       await Vocabulary.findOneAndUpdate(
         { id: v.id },
-        { $set: v },
+        { $set: { ...v, meaning: meaningVal, simpleMeaning: meaningVal } },
         { upsert: true, returnDocument: 'after' }
       );
     }
@@ -576,7 +585,13 @@ async function migrateToMongoIfEmpty(localDb) {
 async function persistVocabulary(rec) {
   if (!isConnected() || !rec?.id) return;
   try {
-    await Vocabulary.findOneAndUpdate({ id: rec.id }, { $set: rec }, { upsert: true });
+    const meaningVal = rec.meaning || rec.simpleMeaning || '';
+    const payload = {
+      ...rec,
+      meaning: meaningVal,
+      simpleMeaning: meaningVal
+    };
+    await Vocabulary.findOneAndUpdate({ id: rec.id }, { $set: payload }, { upsert: true });
   } catch (e) {
     console.warn('[MongoDB] Error persisting vocabulary:', e.message);
   }
@@ -730,6 +745,7 @@ async function ensureBaselineData(localDb = null) {
           {
             id: 'vocab_resilient',
             word: 'Resilient',
+            meaning: 'Able to withstand or recover quickly from difficult conditions.',
             simpleMeaning: 'Able to withstand or recover quickly from difficult conditions.',
             example: 'The engineering team built a resilient system that withstands high traffic spikes.',
             howToUse: 'Use "resilient" to describe people, systems, or materials that bounce back from hardship.',
@@ -740,6 +756,7 @@ async function ensureBaselineData(localDb = null) {
           {
             id: 'vocab_pragmatic',
             word: 'Pragmatic',
+            meaning: 'Dealing with things sensibly and realistically, based on practical considerations.',
             simpleMeaning: 'Dealing with things sensibly and realistically, based on practical considerations.',
             example: 'She took a pragmatic approach to the problem, focusing on immediate solutions.',
             howToUse: 'Use when prioritizing practical results over theoretical perfection.',
@@ -750,6 +767,7 @@ async function ensureBaselineData(localDb = null) {
           {
             id: 'vocab_ubiquitous',
             word: 'Ubiquitous',
+            meaning: 'Present, appearing, or found everywhere.',
             simpleMeaning: 'Present, appearing, or found everywhere.',
             example: 'Smartphones have become ubiquitous in modern daily life.',
             howToUse: 'Use when something is so common that you see it virtually everywhere.',
@@ -760,6 +778,7 @@ async function ensureBaselineData(localDb = null) {
           {
             id: 'vocab_serendipity',
             word: 'Serendipity',
+            meaning: 'The occurrence and development of events by chance in a happy or beneficial way.',
             simpleMeaning: 'The occurrence and development of events by chance in a happy or beneficial way.',
             example: 'Finding this helpful vocabulary tool was pure serendipity.',
             howToUse: 'Use to describe pleasant, unexpected surprises or fortunate accidents.',
@@ -770,9 +789,10 @@ async function ensureBaselineData(localDb = null) {
           {
             id: 'vocab_ephemeral',
             word: 'Ephemeral',
+            meaning: 'Lasting for a very short time; fleeting.',
             simpleMeaning: 'Lasting for a very short time; fleeting.',
-            example: 'Social media trends are often ephemeral, fading within days.',
-            howToUse: 'Use to describe things that are temporary, brief, or quickly passing.',
+            example: 'The ephemeral beauty of the sunset lasted only a few minutes.',
+            howToUse: 'Use when describing temporary pleasures, brief moments, or short-lived trends.',
             date: new Date().toISOString().split('T')[0],
             firstSeenAt: new Date().toISOString(),
             lastSyncedAt: new Date().toISOString()

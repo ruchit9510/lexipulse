@@ -211,7 +211,7 @@ export default function WeeklyReviewModal({ onClose, onSelectWord, onStartQuickP
                     >
                       <div>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{w.word}</span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>— {w.meaning?.slice(0, 40)}...</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>— {(w.meaning || w.simpleMeaning)?.slice(0, 40)}...</span>
                       </div>
                       <span className="badge badge-practice" style={{ fontSize: '0.72rem' }}>
                         Need Practice

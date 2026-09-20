@@ -33,6 +33,48 @@ export default function WordDetailModal({
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [showAiInsights, setShowAiInsights] = useState(false);
 
+  const [currentMeaning, setCurrentMeaning] = useState(
+    (word.meaning && word.meaning !== 'Meaning unavailable') 
+      ? word.meaning 
+      : (word.simpleMeaning && word.simpleMeaning !== 'Meaning unavailable') 
+        ? word.simpleMeaning 
+        : ''
+  );
+  const [generatingMeaning, setGeneratingMeaning] = useState(false);
+
+  // Auto-generate meaning with AI if unavailable
+  React.useEffect(() => {
+    const rawMeaning = word.meaning || word.simpleMeaning || '';
+    if (!rawMeaning || rawMeaning === 'Meaning unavailable') {
+      let isMounted = true;
+      setGeneratingMeaning(true);
+      fetch('/api/ai/generate-meaning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wordId: word.id,
+          word: word.word,
+          example: word.example,
+          howToUse: word.howToUse
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (isMounted && data.success && data.meaning) {
+            setCurrentMeaning(data.meaning);
+            word.meaning = data.meaning;
+            word.simpleMeaning = data.meaning;
+          }
+        })
+        .catch(err => console.error('Failed to generate meaning with AI:', err))
+        .finally(() => {
+          if (isMounted) setGeneratingMeaning(false);
+        });
+
+      return () => { isMounted = false; };
+    }
+  }, [word]);
+
   // Close on Escape key
   React.useEffect(() => {
     const handleKeyDown = (e) => {
@@ -70,7 +112,7 @@ export default function WordDetailModal({
         body: JSON.stringify({
           word: word.word,
           sentence: sentence.trim(),
-          meaning: word.meaning
+          meaning: currentMeaning || word.meaning || word.simpleMeaning || ''
         })
       });
       const data = await res.json();
@@ -98,7 +140,7 @@ export default function WordDetailModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             word: word.word,
-            meaning: word.meaning,
+            meaning: currentMeaning || word.meaning || word.simpleMeaning || '',
             example: word.example
           })
         });
@@ -175,12 +217,25 @@ export default function WordDetailModal({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Simple Meaning */}
           <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.05em' }}>
-              Simple Meaning
-            </span>
-            <p style={{ fontSize: '1.05rem', color: 'var(--text-primary)', marginTop: '0.2rem', lineHeight: '1.5' }}>
-              {word.meaning}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.05em' }}>
+                Simple Meaning
+              </span>
+              {generatingMeaning && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <Sparkles size={12} className="animate-spin" /> AI Generating...
+                </span>
+              )}
+            </div>
+            {generatingMeaning && !currentMeaning ? (
+              <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', marginTop: '0.2rem', fontStyle: 'italic' }}>
+                Generating definition with Gemini AI...
+              </p>
+            ) : (
+              <p style={{ fontSize: '1.05rem', color: 'var(--text-primary)', marginTop: '0.2rem', lineHeight: '1.5' }}>
+                {currentMeaning || word.meaning || word.simpleMeaning || 'Meaning unavailable'}
+              </p>
+            )}
           </div>
 
           {/* Example Sentence */}

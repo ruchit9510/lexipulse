@@ -19,15 +19,42 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Initialize DB and run initial sync if empty
+// Initialize DB and run initial sync if empty or missing meanings
+async function autoFillMissingMeanings() {
+  try {
+    const words = db.getAllWords();
+    const missing = words.filter(w => !w.meaning || !w.meaning.trim() || w.meaning === 'Meaning unavailable');
+    if (missing.length > 0) {
+      console.log(`[AI Meaning Generator] Generating missing meanings for ${missing.length} words...`);
+      const prefs = db.getUserPreferences();
+      for (const w of missing) {
+        const genMeaning = await geminiService.generateWordMeaning({
+          word: w.word,
+          example: w.example,
+          howToUse: w.howToUse,
+          contexts: prefs.selectedContexts || []
+        });
+        if (genMeaning && genMeaning !== 'Meaning unavailable') {
+          db.updateWordMeaning(w.id, genMeaning);
+          console.log(`[AI Meaning Generator] Generated meaning for "${w.word}": ${genMeaning}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[AI Meaning Generator] Notice:', err.message);
+  }
+}
+
 (async () => {
   try {
     const words = db.getAllWords();
-    if (words.length === 0) {
-      console.log('Database empty, performing initial sync...');
+    const hasMissingMeanings = words.some(w => !w.meaning || !w.meaning.trim() || w.meaning === 'Meaning unavailable');
+    if (words.length === 0 || hasMissingMeanings) {
+      console.log(words.length === 0 ? 'Database empty, performing initial sync...' : 'Missing meanings detected, re-syncing from Drive...');
       await driveService.syncWithDrive(true);
       console.log('Initial sync completed. Loaded records:', db.getAllWords().length);
     }
+    await autoFillMissingMeanings();
   } catch (err) {
     console.warn('Initial sync notice:', err.message);
   }
@@ -432,6 +459,36 @@ app.post('/api/ai/quiz-hint', async (req, res) => {
     res.json({ success: true, hint });
   } catch (err) {
     console.error('AI quiz-hint error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * AI Generate Word Meaning
+ * Automatically generates a simple, clear definition if meaning is unavailable and persists it
+ */
+app.post('/api/ai/generate-meaning', async (req, res) => {
+  try {
+    const { wordId, word, example, howToUse } = req.body || {};
+    if (!word) {
+      return res.status(400).json({ success: false, message: 'Word is required' });
+    }
+
+    const prefs = db.getUserPreferences();
+    const meaning = await geminiService.generateWordMeaning({
+      word,
+      example,
+      howToUse,
+      contexts: prefs.selectedContexts || []
+    });
+
+    if (wordId && meaning && meaning !== 'Meaning unavailable') {
+      db.updateWordMeaning(wordId, meaning);
+    }
+
+    res.json({ success: true, meaning });
+  } catch (err) {
+    console.error('AI generate-meaning error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

@@ -197,7 +197,9 @@ async function syncWithDrive(force = false) {
       });
 
       const fileMeta = metaRes.data;
+      const hasMissingMeanings = db.getAllWords().some(w => !w.meaning || !w.meaning.trim());
       const isUnchanged = !force && 
+        !hasMissingMeanings &&
         settings.lastModifiedTime && 
         settings.lastModifiedTime === fileMeta.modifiedTime;
 
