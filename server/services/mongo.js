@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
   preferences: {
     selectedContexts: {
       type: [String],
-      default: ['Daily Conversation', 'Workplace', 'Software Development']
+      default: ['Daily Life', 'General Topics']
     },
     preferredTheme: { type: String, default: 'obsidian' },
     designSettings: {
@@ -223,7 +223,8 @@ async function ensureSeedUser() {
         passwordSalt: salt,
         name: 'Ruchit',
         preferences: {
-          selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+          selectedContexts: ['Daily Life', 'General Topics'],
+          contexts: ['Daily Life', 'General Topics'],
           preferredTheme: 'obsidian'
         },
         gamification: {
@@ -240,7 +241,8 @@ async function ensureSeedUser() {
       existing.passwordSalt = salt;
       if (!existing.preferences) {
         existing.preferences = {
-          selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+          selectedContexts: ['Daily Life', 'General Topics'],
+          contexts: ['Daily Life', 'General Topics'],
           preferredTheme: 'obsidian'
         };
       }
@@ -285,7 +287,8 @@ async function verifyUser(username, password) {
           sessionLastActive: new Date(),
           lastLoginAt: new Date(),
           preferences: {
-            selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+            selectedContexts: ['Daily Life', 'General Topics'],
+            contexts: ['Daily Life', 'General Topics'],
             preferredTheme: 'obsidian',
             designSettings: {
               theme: 'obsidian',
@@ -331,7 +334,8 @@ async function verifyUser(username, password) {
             username: user.username,
             name: user.name || 'Ruchit',
             preferences: user.preferences || {
-              selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+              selectedContexts: ['Daily Life', 'General Topics'],
+              contexts: ['Daily Life', 'General Topics'],
               preferredTheme: 'obsidian',
               designSettings: {
                 theme: 'obsidian',
@@ -367,7 +371,8 @@ async function verifyUser(username, password) {
         username: 'ruchit',
         name: 'Ruchit',
         preferences: {
-          selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+          selectedContexts: ['Daily Life', 'General Topics'],
+          contexts: ['Daily Life', 'General Topics'],
           preferredTheme: 'obsidian',
           designSettings: {
             theme: 'obsidian',
@@ -673,7 +678,12 @@ async function updateUserPreferences(username, preferences) {
   if (!isConnected() || !username) return;
   try {
     const cleanUsername = String(username).trim().toLowerCase();
-    await User.findOneAndUpdate({ username: cleanUsername }, { $set: { preferences } });
+    const incomingContexts = preferences.selectedContexts || preferences.contexts;
+    const updatePayload = {
+      ...preferences,
+      ...(incomingContexts ? { selectedContexts: incomingContexts, contexts: incomingContexts } : {})
+    };
+    await User.findOneAndUpdate({ username: cleanUsername }, { $set: { preferences: updatePayload } });
   } catch (e) {
     console.warn('[MongoDB] Error updating preferences:', e.message);
   }
@@ -684,7 +694,16 @@ async function getUserPreferences(username) {
   try {
     const cleanUsername = String(username).trim().toLowerCase();
     const user = await User.findOne({ username: cleanUsername });
-    return user ? user.preferences : null;
+    if (!user || !user.preferences) return null;
+    const prefs = user.preferences.toObject ? user.preferences.toObject() : user.preferences;
+    const rawContexts = prefs.selectedContexts || prefs.contexts || ['Daily Life', 'General Topics'];
+    const cleanedContexts = rawContexts.filter(c => c && c.toLowerCase() !== 'software development' && c.toLowerCase() !== 'software');
+    const finalContexts = cleanedContexts.length > 0 ? cleanedContexts : ['Daily Life', 'General Topics'];
+    return {
+      ...prefs,
+      selectedContexts: finalContexts,
+      contexts: finalContexts
+    };
   } catch (e) {
     console.warn('[MongoDB] Error getting preferences:', e.message);
     return null;

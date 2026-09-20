@@ -43,7 +43,8 @@ const DEFAULT_STATE = {
   learningActivities: [], // list of activities for weakness calculation
   weeklyReports: {}, // weekStart -> report
   userPreferences: {
-    selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+    selectedContexts: ['Daily Life', 'General Topics'],
+    contexts: ['Daily Life', 'General Topics'],
     preferredTheme: 'obsidian'
   },
   gamification: {
@@ -693,8 +694,9 @@ function updateUserGamification(patch) {
 
 function getUserPreferences() {
   const db = loadDb();
-  return db.userPreferences || {
-    selectedContexts: ['Daily Conversation', 'Workplace', 'Software Development'],
+  const prefs = db.userPreferences || {
+    selectedContexts: ['Daily Life', 'General Topics'],
+    contexts: ['Daily Life', 'General Topics'],
     preferredTheme: 'obsidian',
     designSettings: {
       theme: 'obsidian',
@@ -706,13 +708,26 @@ function getUserPreferences() {
     },
     customThemes: []
   };
+
+  const rawContexts = prefs.selectedContexts || prefs.contexts || ['Daily Life', 'General Topics'];
+  const cleanedContexts = rawContexts.filter(c => c && c.toLowerCase() !== 'software development' && c.toLowerCase() !== 'software');
+  const finalContexts = cleanedContexts.length > 0 ? cleanedContexts : ['Daily Life', 'General Topics'];
+
+  return {
+    ...prefs,
+    selectedContexts: finalContexts,
+    contexts: finalContexts
+  };
 }
 
 function updateUserPreferences(patch) {
   const db = loadDb();
+  const incomingContexts = patch.selectedContexts || patch.contexts;
+
   db.userPreferences = { 
     ...db.userPreferences, 
     ...patch,
+    ...(incomingContexts ? { selectedContexts: incomingContexts, contexts: incomingContexts } : {}),
     designSettings: {
       ...(db.userPreferences?.designSettings || {}),
       ...(patch.designSettings || {})

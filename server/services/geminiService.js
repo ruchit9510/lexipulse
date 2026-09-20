@@ -79,7 +79,7 @@ function cleanAndParseJson(text) {
 
 /**
  * 1. AI Sentence Coach
- * Evaluates a user-written sentence for a vocabulary word, tailored to user contexts
+ * Evaluates a user-written sentence for a vocabulary word, tailored to the word's best-suited context
  */
 async function evaluateSentence({ word, sentence, meaning, contexts = [] }) {
   if (!sentence || !sentence.trim()) {
@@ -91,23 +91,29 @@ async function evaluateSentence({ word, sentence, meaning, contexts = [] }) {
     };
   }
 
-  const contextInstruction = contexts.length > 0 
-    ? `The student prefers vocabulary context relevant to: ${contexts.join(', ')}. When polishing the sentence, orient it naturally toward these settings if appropriate.`
+  const validContexts = (contexts || []).filter(c => c && c.toLowerCase() !== 'software development' && c.toLowerCase() !== 'software');
+  const contextNote = validContexts.length > 0 
+    ? `Student context preferences: ${validContexts.join(', ')}.` 
     : '';
 
   const prompt = `You are a warm, encouraging, expert English vocabulary and grammar coach.
 A student is learning the vocabulary word "${word}" (Meaning: "${meaning || ''}").
 The student wrote this practice sentence:
 "${sentence}"
-${contextInstruction}
+${contextNote}
 
 Evaluate whether the word "${word}" is used accurately, naturally, and grammatically.
+CRITICAL TOPIC GUIDELINE:
+- Respect the topic or domain of the student's original sentence.
+- When polishing the sentence, use whatever real-world topic is most natural and best suited for "${word}" (e.g. daily conversation, nature, literature, science, philosophy, arts, human emotions, travel, social life).
+- Do NOT force software engineering, coding, or tech office jargon unless the student's sentence or the word is specifically about software/technology.
+
 Return ONLY a valid JSON object matching this exact schema:
 {
   "score": <number between 1 and 5, where 5 is flawless and 1 is incorrect usage>,
   "isGood": <boolean, true if score >= 3>,
   "feedback": "<1-2 concise sentences of supportive, actionable feedback explaining why it works or how to fix it>",
-  "polishedSentence": "<a natural, polished native-speaker version of their sentence showcasing the word effectively>"
+  "polishedSentence": "<a natural, polished native-speaker version of their sentence showcasing the word effectively in its most authentic context>"
 }`;
 
   try {
@@ -127,12 +133,13 @@ Return ONLY a valid JSON object matching this exact schema:
 
 /**
  * 2. AI Word Insights & Mnemonics
- * Generates memory hooks and real-world dialogue tailored to user contexts
+ * Generates memory hooks and real-world dialogue tailored to the word's best-suited context
  */
 async function getWordInsights({ word, meaning, example, contexts = [] }) {
-  const contextInstruction = contexts.length > 0
-    ? `The user is especially interested in these communication contexts: ${contexts.join(', ')}. Tailor the dialogue to reflect one of these settings.`
-    : 'Provide a realistic modern professional or workplace dialogue.';
+  const validContexts = (contexts || []).filter(c => c && c.toLowerCase() !== 'software development' && c.toLowerCase() !== 'software');
+  const contextInstruction = validContexts.length > 0
+    ? `Where naturally appropriate, you may weave in: ${validContexts.join(', ')}.`
+    : '';
 
   const prompt = `You are an expert English language educator specializing in rapid vocabulary retention.
 Vocabulary Word: "${word}"
@@ -140,10 +147,15 @@ Definition: "${meaning || ''}"
 Example: "${example || ''}"
 ${contextInstruction}
 
-Generate high-impact learning aids. Return ONLY a valid JSON object matching this schema:
+Generate high-impact learning aids.
+CRITICAL TOPIC GUIDELINE:
+- Choose the topic, domain, or real-world setting that is MOST NATURAL AND BEST SUITED for the word "${word}" (for example: everyday social life, nature & environment, literature & arts, human relationships, emotions, philosophy, science & discovery, travel, or casual conversation).
+- Do NOT default or restrict examples to software, programming, or tech workplaces unless "${word}" is an inherently technical term.
+
+Return ONLY a valid JSON object matching this schema:
 {
   "mnemonic": "<A vivid, memorable 1-2 sentence memory hook, rhyme, or visual association trick to never forget this word's meaning>",
-  "workplaceDialogue": "<A 2-4 line realistic modern dialogue (Speaker A and Speaker B) naturally showcasing this word in context>",
+  "workplaceDialogue": "<A 2-4 line realistic dialogue (Speaker A and Speaker B) naturally showcasing this word in its best-suited real-world context>",
   "collocations": ["<common word pair 1>", "<common word pair 2>", "<common word pair 3>"]
 }`;
 
@@ -153,9 +165,9 @@ Generate high-impact learning aids. Return ONLY a valid JSON object matching thi
   } catch (err) {
     console.error('[GeminiService] getWordInsights error:', err.message);
     return {
-      mnemonic: `Picture the word "${word}" in action to remember its core meaning: ${meaning}.`,
-      workplaceDialogue: `A: "How can we address this ${word.toLowerCase()} in our team workflow?"\nB: "Let's review the current process and simplify the steps today."`,
-      collocations: [`effective ${word.toLowerCase()}`, `major ${word.toLowerCase()}`, `${word.toLowerCase()} strategy`]
+      mnemonic: `Picture the word "${word}" in action to remember its core meaning: ${meaning || 'its essence'}.`,
+      workplaceDialogue: `A: "Have you noticed how '${word.toLowerCase()}' captures this situation?"\nB: "Yes, it describes the scene and nuance perfectly."`,
+      collocations: [`${word.toLowerCase()} moment`, `truly ${word.toLowerCase()}`, `sense of ${word.toLowerCase()}`]
     };
   }
 }
@@ -190,14 +202,13 @@ async function generateWordMeaning({ word, example = '', howToUse = '', contexts
 
   const contextInfo = [
     example ? `Example sentence: "${example}"` : '',
-    howToUse ? `Usage note: "${howToUse}"` : '',
-    contexts.length > 0 ? `Preferred communication domains: ${contexts.join(', ')}` : ''
+    howToUse ? `Usage note: "${howToUse}"` : ''
   ].filter(Boolean).join('\n');
 
   const prompt = `You are an expert English lexicographer and vocabulary educator.
 Define the English vocabulary word: "${word}".
 ${contextInfo ? `${contextInfo}\n` : ''}
-Provide a clear, simple, and concise definition (1-2 sentences) that is easy to understand for learners.
+Provide a clear, simple, and concise definition (1-2 sentences) that is easy to understand for learners, reflecting its most natural and accurate meaning in English.
 Return ONLY a valid JSON object matching this exact schema:
 {
   "meaning": "<Clear, concise, and simple definition of the word>"

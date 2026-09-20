@@ -38,9 +38,7 @@ export default function SettingsModal({
   const [driveFiles, setDriveFiles] = useState([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [showFilePicker, setShowFilePicker] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [selectedContexts, setSelectedContexts] = useState(['daily', 'workplace']);
-  const [resetting, setResetting] = useState(false);
+  const [selectedContexts, setSelectedContexts] = useState(['dynamic', 'daily']);
   const [resetNotice, setResetNotice] = useState('');
 
   const handleResetVocabulary = async () => {
@@ -88,8 +86,9 @@ export default function SettingsModal({
     try {
       const res = await fetch('/api/user/preferences');
       const data = await res.json();
-      if (data.success && data.preferences?.contexts) {
-        setSelectedContexts(data.preferences.contexts);
+      const ctxs = data.preferences?.contexts || data.preferences?.selectedContexts;
+      if (data.success && ctxs) {
+        setSelectedContexts(ctxs);
       }
     } catch (e) {
       // ignore
@@ -105,7 +104,7 @@ export default function SettingsModal({
       await fetch('/api/user/preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contexts: updated })
+        body: JSON.stringify({ contexts: updated, selectedContexts: updated })
       });
     } catch (e) {
       // ignore
@@ -534,12 +533,15 @@ export default function SettingsModal({
             Context Personalization (AI Prompts & Examples)
           </h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-            Select the domains where you use English most often. Gemini Flash-Lite AI will tailor sentence feedback, mnemonics, and workplace dialogues to these contexts.
+            Choose communication domains to personalize examples. By default, Gemini Flash AI automatically selects the most authentic, natural topic for each word (nature, arts, daily life, science, philosophy, emotions, etc.) without forcing software terminology.
           </p>
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {[
+              { id: 'dynamic', label: '✨ Best-Suited Topic per Word (Recommended)' },
               { id: 'daily', label: 'Daily Life & Social' },
+              { id: 'arts', label: 'Arts, Literature & Culture' },
+              { id: 'science', label: 'Nature & Science' },
               { id: 'workplace', label: 'Workplace & Business' },
               { id: 'software', label: 'Software Engineering & Tech' },
               { id: 'meetings', label: 'Meetings & Presentations' },

@@ -298,11 +298,11 @@ export default function WordDetailModal({
                   </p>
                 </div>
 
-                {/* Workplace Dialogue */}
+                {/* Real-World Dialogue */}
                 {insights.workplaceDialogue && (
                   <div>
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.2rem' }}>
-                      <MessageSquare size={14} /> Workplace Dialogue:
+                      <MessageSquare size={14} /> Real-World Dialogue:
                     </span>
                     <pre style={{
                       fontFamily: 'inherit',

@@ -619,14 +619,23 @@ app.get('/api/user/preferences', async (req, res) => {
   }
 });
 
-app.put('/api/user/preferences', (req, res) => {
+const handleUpdatePreferences = (req, res) => {
   try {
-    const updated = db.updateUserPreferences(req.body || {});
+    const body = req.body || {};
+    const contexts = body.selectedContexts || body.contexts;
+    const payload = {
+      ...body,
+      ...(contexts ? { selectedContexts: contexts, contexts } : {})
+    };
+    const updated = db.updateUserPreferences(payload);
     res.json({ success: true, preferences: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
-});
+};
+
+app.put('/api/user/preferences', handleUpdatePreferences);
+app.post('/api/user/preferences', handleUpdatePreferences);
 
 /**
  * ---------------- PWA OFFLINE ACTIONS SYNC ----------------
